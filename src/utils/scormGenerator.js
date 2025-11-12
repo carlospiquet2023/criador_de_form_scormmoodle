@@ -306,9 +306,9 @@ function initializeSCORM() {
         window.API_1484_11.SetValue('cmi.score.scaled', '0');
         window.API_1484_11.SetValue('cmi.progress_measure', '0');
         
-        // Commit inicial crítico
+        // CRÍTICO: Fazer commit IMEDIATAMENTE após inicialização
         const commitResult = window.API_1484_11.Commit('');
-        console.log('✓ SCORM inicializado - Commit:', commitResult);
+        console.log('✓ SCORM inicializado - Score inicial: 0 - Commit:', commitResult);
       } else {
         console.error('✗ Falha ao inicializar SCORM');
       }
@@ -387,6 +387,16 @@ function submitToSCORM(formData) {
     console.log('Timestamp:', timestamp);
     console.log('Session Time:', sessionTime);
     
+    // 🔥 COMMIT #1 DO SCORE - LOGO NO INÍCIO (ANTES DAS INTERAÇÕES)
+    console.log('');
+    console.log('🎯 COMMIT #1 DO SCORE - DEFININDO NO INÍCIO...');
+    window.API_1484_11.SetValue('cmi.score.raw', '100');
+    window.API_1484_11.SetValue('cmi.score.min', '0');
+    window.API_1484_11.SetValue('cmi.score.max', '100');
+    window.API_1484_11.SetValue('cmi.score.scaled', '1');
+    window.API_1484_11.Commit('');
+    console.log('  ✓ Score #1 gravado: 100/100');
+    
     // PASSO 1: Salvar tempos
     console.log('');
     console.log('📅 PASSO 1: Salvando tempos...');
@@ -411,6 +421,27 @@ function submitToSCORM(formData) {
       console.log('  ✓', (index + 1) + '.', questionInfo.label, '=', value);
       window.API_1484_11.Commit('');
     });
+    
+    // 🔥 COMMIT #2 DO SCORE - APÓS AS INTERAÇÕES
+    console.log('');
+    console.log('🎯 COMMIT #2 DO SCORE - REFORÇANDO APÓS INTERAÇÕES...');
+    window.API_1484_11.SetValue('cmi.score.raw', '100');
+    window.API_1484_11.SetValue('cmi.score.min', '0');
+    window.API_1484_11.SetValue('cmi.score.max', '100');
+    window.API_1484_11.SetValue('cmi.score.scaled', '1');
+    window.API_1484_11.Commit('');
+    
+    // Verificar IMEDIATAMENTE se o score foi gravado
+    const scoreCheck = window.API_1484_11.GetValue('cmi.score.raw');
+    console.log('  ✓ Score #2 definido e verificado:', scoreCheck, '(deve ser 100)');
+    
+    if (scoreCheck !== '100') {
+      console.error('  ⚠️ ALERTA: Score não foi gravado corretamente!');
+      // Tentar novamente
+      window.API_1484_11.SetValue('cmi.score.raw', '100');
+      window.API_1484_11.Commit('');
+      console.log('  ↻ Tentativa de regravação do score...');
+    }
     
     // PASSO 3: Salvar objetivos
     console.log('');
@@ -468,20 +499,35 @@ function submitToSCORM(formData) {
     window.API_1484_11.Commit('');
     console.log('  ✓ Comentário salvo');
     
-    // PASSO 6: Status final
+    // PASSO 6: Status de conclusão
     console.log('');
-    console.log('📊 PASSO 6: Definindo status final...');
+    console.log('� PASSO 6: Definindo status de conclusão...');
+    window.API_1484_11.SetValue('cmi.completion_status', 'completed');
+    window.API_1484_11.SetValue('cmi.success_status', 'passed');
+    window.API_1484_11.SetValue('cmi.progress_measure', '1');
+    window.API_1484_11.Commit('');
+    
+    console.log('  ✓ Status: completed');
+    console.log('  ✓ Success: passed');
+    
+    // 🔥 COMMIT #3 DO SCORE - GARANTIA FINAL ANTES DO TERMINATE
+    console.log('');
+    console.log('🎯 COMMIT #3 DO SCORE - GARANTIA FINAL...');
     window.API_1484_11.SetValue('cmi.score.raw', '100');
     window.API_1484_11.SetValue('cmi.score.min', '0');
     window.API_1484_11.SetValue('cmi.score.max', '100');
     window.API_1484_11.SetValue('cmi.score.scaled', '1');
-    window.API_1484_11.SetValue('cmi.completion_status', 'completed');
-    window.API_1484_11.SetValue('cmi.success_status', 'passed');
-    window.API_1484_11.SetValue('cmi.progress_measure', '1');
+    window.API_1484_11.Commit('');
     
-    console.log('  ✓ Status: completed');
-    console.log('  ✓ Success: passed');
-    console.log('  ✓ Score: 100/100');
+    // Verificação final do score
+    const finalScoreCheck = window.API_1484_11.GetValue('cmi.score.raw');
+    console.log('  ✓ Score #3 (FINAL) verificado:', finalScoreCheck, '(deve ser 100)');
+    
+    if (finalScoreCheck !== '100') {
+      console.error('  🚨 ERRO CRÍTICO: Score final não é 100!');
+    } else {
+      console.log('  🎉 SCORE 100 CONFIRMADO!');
+    }
     
     // PASSO 7: COMMIT FINAL
     console.log('');
