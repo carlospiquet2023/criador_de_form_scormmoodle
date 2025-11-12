@@ -275,6 +275,9 @@ function initializeSCORM() {
       if (scormInitialized) {
         window.API_1484_11.SetValue('cmi.completion_status', 'incomplete');
         window.API_1484_11.SetValue('cmi.success_status', 'unknown');
+        window.API_1484_11.SetValue('cmi.score.min', '0');
+        window.API_1484_11.SetValue('cmi.score.max', '100');
+        window.API_1484_11.SetValue('cmi.score.raw', '0');
         window.API_1484_11.Commit('');
         console.log('SCORM inicializado com sucesso');
       }
@@ -284,51 +287,103 @@ function initializeSCORM() {
   }
 }
 
-function calculateSessionTime() {
-  const endTime = new Date();
-  const milliseconds = endTime - startTime;
-  const seconds = Math.floor(milliseconds / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
+function formatSessionTime(milliseconds) {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
   
-  const s = seconds % 60;
-  const m = minutes % 60;
-  const h = hours;
+  // Formato ISO 8601 Duration: PT[horas]H[minutos]M[segundos]S
+  return 'PT' + hours + 'H' + minutes + 'M' + seconds + 'S';
+}
+
+function getCurrentTimestamp() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
   
-  return 'PT' + h + 'H' + m + 'M' + s + 'S';
+  return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes + ':' + seconds;
 }
 
 function submitToSCORM(formData) {
-  if (!scormInitialized) return;
+  if (!scormInitialized) {
+    console.warn('SCORM não inicializado');
+    return;
+  }
   
   try {
-    // Calcular tempo de sessão
-    const sessionTime = calculateSessionTime();
-    window.API_1484_11.SetValue('cmi.session_time', sessionTime);
+    const timestamp = getCurrentTimestamp();
+    const endTime = new Date();
+    const sessionTime = formatSessionTime(endTime - startTime);
     
-    // Salvar respostas como interactions
+    // Salvar tempo de sessão
+    window.API_1484_11.SetValue('cmi.session_time', sessionTime);
+    window.API_1484_11.SetValue('cmi.total_time', sessionTime);
+    
+    // Salvar respostas como interactions com todos os campos necessários
     let interactionIndex = 0;
     const formEntries = Array.from(formData.entries());
     
     formEntries.forEach(([key, value]) => {
-      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.id\`, key);
-      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.type\`, 'choice');
-      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.learner_response\`, value);
-      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.result\`, 'correct');
+      const interactionId = 'q_' + interactionIndex;
+      
+      window.API_1484_11.SetValue('cmi.interactions.' + interactionIndex + '.id', interactionId);
+      window.API_1484_11.SetValue('cmi.interactions.' + interactionIndex + '.type', 'choice');
+      window.API_1484_11.SetValue('cmi.interactions.' + interactionIndex + '.learner_response', value);
+      window.API_1484_11.SetValue('cmi.interactions.' + interactionIndex + '.result', 'correct');
+      window.API_1484_11.SetValue('cmi.interactions.' + interactionIndex + '.timestamp', timestamp);
+      window.API_1484_11.SetValue('cmi.interactions.' + interactionIndex + '.description', key);
+      window.API_1484_11.SetValue('cmi.interactions.' + interactionIndex + '.weighting', '1');
+      
       interactionIndex++;
     });
     
-    // Marcar como completado
+    // Salvar dados estruturados em suspend_data para relatórios
+    const suspendData = {
+      submitted: true,
+      timestamp: timestamp,
+      responses: Object.fromEntries(formEntries),
+      total_questions: formEntries.length,
+      session_time: sessionTime
+    };
+    
+    window.API_1484_11.SetValue('cmi.suspend_data', JSON.stringify(suspendData));
+    
+    // Definir scores
+    window.API_1484_11.SetValue('cmi.score.raw', '100');
+    window.API_1484_11.SetValue('cmi.score.scaled', '1');
+    
+    // Marcar como completado e aprovado
     window.API_1484_11.SetValue('cmi.completion_status', 'completed');
     window.API_1484_11.SetValue('cmi.success_status', 'passed');
-    window.API_1484_11.SetValue('cmi.score.raw', '100');
+    window.API_1484_11.SetValue('cmi.progress_measure', '1');
     
-    // Commit
-    window.API_1484_11.Commit('');
+    // Commit dos dados
+    const commitResult = window.API_1484_11.Commit('');
     
-    console.log('Dados enviados ao SCORM com sucesso');
+    if (commitResult === 'true' || commitResult === true) {
+      console.log('✓ Dados enviados ao SCORM com sucesso');
+      console.log('  Total de interações: ' + interactionIndex);
+      console.log('  Tempo de sessão: ' + sessionTime);
+      console.log('  Timestamp: ' + timestamp);
+    } else {
+      console.error('✗ Falha ao fazer commit dos dados');
+      const errorCode = window.API_1484_11.GetLastError();
+      const errorString = window.API_1484_11.GetErrorString(errorCode);
+      console.error('  Erro: ' + errorCode + ' - ' + errorString);
+    }
+    
   } catch (e) {
     console.error('Erro ao enviar dados ao SCORM:', e);
+    if (window.API_1484_11) {
+      const errorCode = window.API_1484_11.GetLastError();
+      const errorString = window.API_1484_11.GetErrorString(errorCode);
+      console.error('Código de erro SCORM: ' + errorCode + ' - ' + errorString);
+    }
   }
 }
 
@@ -336,8 +391,17 @@ function terminateSCORM() {
   if (!scormInitialized) return;
   
   try {
-    window.API_1484_11.Terminate('');
-    console.log('SCORM terminado');
+    // Commit final antes de terminar
+    window.API_1484_11.Commit('');
+    
+    const result = window.API_1484_11.Terminate('');
+    
+    if (result === 'true' || result === true) {
+      console.log('SCORM terminado com sucesso');
+      scormInitialized = false;
+    } else {
+      console.error('Erro ao terminar SCORM');
+    }
   } catch (e) {
     console.error('Erro ao terminar SCORM:', e);
   }
@@ -353,6 +417,25 @@ window.addEventListener('load', function() {
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     
+    // Validar campos obrigatórios
+    const requiredFields = form.querySelectorAll('[required]');
+    let allFilled = true;
+    
+    requiredFields.forEach(function(field) {
+      const name = field.getAttribute('name');
+      if (name && field.type === 'radio') {
+        const checkedInput = form.querySelector('[name="' + name + '"]:checked');
+        if (!checkedInput) {
+          allFilled = false;
+        }
+      }
+    });
+    
+    if (!allFilled) {
+      alert('Por favor, responda todas as questões obrigatórias marcadas com *');
+      return;
+    }
+    
     const formData = new FormData(form);
     
     // Enviar ao SCORM
@@ -362,16 +445,34 @@ window.addEventListener('load', function() {
     form.style.display = 'none';
     successMessage.style.display = 'block';
     
-    // Terminar SCORM após 2 segundos
-    setTimeout(() => {
+    // Terminar SCORM após 3 segundos
+    setTimeout(function() {
       terminateSCORM();
-    }, 2000);
+    }, 3000);
   });
+  
+  // Salvar progresso automaticamente a cada 30 segundos
+  setInterval(function() {
+    if (scormInitialized) {
+      window.API_1484_11.Commit('');
+      console.log('Progresso salvo automaticamente');
+    }
+  }, 30000);
 });
 
 // Terminar SCORM quando a janela fechar
 window.addEventListener('beforeunload', function() {
-  terminateSCORM();
+  if (scormInitialized) {
+    window.API_1484_11.Commit('');
+    terminateSCORM();
+  }
+});
+
+// Tratamento de fechamento inesperado
+window.addEventListener('unload', function() {
+  if (scormInitialized) {
+    terminateSCORM();
+  }
 });
 `;
 };
