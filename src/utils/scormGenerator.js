@@ -259,7 +259,7 @@ const generateHTML = (formData) => {
 </html>`;
 };
 
-// Gera o JavaScript da avaliação
+// Gera o JavaScript da avaliação - VERSÃO OTIMIZADA MOODLE
 const generateEvaluationJS = (formData) => {
   // Gerar mapeamento dinâmico de questões
   let questionMapCode = '{\n';
@@ -281,7 +281,7 @@ const generateEvaluationJS = (formData) => {
 let scormInitialized = false;
 let startTime = new Date();
 
-// Mapeamento dinâmico de questões para relatórios
+// Mapeamento de questões
 const questionMap = ${questionMapCode};
 
 function initializeSCORM() {
@@ -291,19 +291,26 @@ function initializeSCORM() {
       scormInitialized = (result === 'true' || result === true);
       
       if (scormInitialized) {
+        // Valores iniciais obrigatórios
         window.API_1484_11.SetValue('cmi.completion_status', 'incomplete');
         window.API_1484_11.SetValue('cmi.success_status', 'unknown');
         window.API_1484_11.SetValue('cmi.score.min', '0');
         window.API_1484_11.SetValue('cmi.score.max', '100');
         window.API_1484_11.SetValue('cmi.score.raw', '0');
+        window.API_1484_11.SetValue('cmi.score.scaled', '0');
         window.API_1484_11.SetValue('cmi.progress_measure', '0');
-        window.API_1484_11.SetValue('cmi.exit', 'suspend');
-        window.API_1484_11.Commit('');
-        console.log('✓ SCORM inicializado com sucesso');
+        
+        // Commit inicial crítico
+        const commitResult = window.API_1484_11.Commit('');
+        console.log('✓ SCORM inicializado - Commit:', commitResult);
+      } else {
+        console.error('✗ Falha ao inicializar SCORM');
       }
+    } else {
+      console.error('✗ API SCORM não encontrada');
     }
   } catch (e) {
-    console.warn('Erro ao inicializar SCORM:', e);
+    console.error('✗ Erro ao inicializar SCORM:', e);
   }
 }
 
@@ -322,8 +329,6 @@ function formatSessionTime(milliseconds) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  
-  // Formato ISO 8601 Duration: PT[horas]H[minutos]M[segundos]S
   return 'PT' + hours + 'H' + minutes + 'M' + seconds + 'S';
 }
 
@@ -335,19 +340,19 @@ function getCurrentTimestamp() {
   const hours = String(now.getHours()).padStart(2, '0');
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const seconds = String(now.getSeconds()).padStart(2, '0');
-  
   return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes + ':' + seconds;
 }
 
 function submitToSCORM(formData) {
   if (!scormInitialized) {
-    console.warn('SCORM não inicializado');
+    console.error('✗ SCORM não inicializado - não é possível salvar');
+    alert('Erro: Conexão com o LMS não estabelecida. Por favor, recarregue a página.');
     return;
   }
   
   try {
     console.log('═══════════════════════════════════════');
-    console.log('📤 ENVIANDO DADOS AO MOODLE');
+    console.log('📤 INICIANDO ENVIO PARA MOODLE');
     console.log('═══════════════════════════════════════');
     
     const timestamp = getCurrentTimestamp();
@@ -355,132 +360,164 @@ function submitToSCORM(formData) {
     const sessionTime = formatSessionTime(endTime - startTime);
     const formEntries = Array.from(formData.entries());
     
-    // Organizar respostas estruturadas
-    const structuredData = {
-      metadata: {
-        submitted: true,
-        submission_time: timestamp,
-        session_duration: sessionTime,
-        total_questions: formEntries.length,
-        scorm_version: '2004'
-      },
-      sections: {},
-      all_responses: []
-    };
+    console.log('Total de respostas:', formEntries.length);
+    console.log('Timestamp:', timestamp);
+    console.log('Session Time:', sessionTime);
     
-    // Processar cada resposta
+    // PASSO 1: Salvar tempos
+    console.log('\\n📅 PASSO 1: Salvando tempos...');
+    window.API_1484_11.SetValue('cmi.session_time', sessionTime);
+    
+    // PASSO 2: Salvar CADA resposta como interação
+    console.log('\\n📝 PASSO 2: Salvando interações...');
     formEntries.forEach(function(entry, index) {
       const fieldName = entry[0];
       const value = entry[1];
       const questionInfo = getQuestionInfo(fieldName);
       
-      // Criar objeto de resposta
-      const responseObj = {
-        question_id: questionInfo.id,
-        question_label: questionInfo.label,
-        section: questionInfo.section,
-        answer: value,
-        timestamp: timestamp
-      };
+      const idx = String(index);
       
-      structuredData.all_responses.push(responseObj);
+      // Dados da interação
+      window.API_1484_11.SetValue('cmi.interactions.' + idx + '.id', questionInfo.id);
+      window.API_1484_11.SetValue('cmi.interactions.' + idx + '.type', 'choice');
+      window.API_1484_11.SetValue('cmi.interactions.' + idx + '.description', questionInfo.label);
+      window.API_1484_11.SetValue('cmi.interactions.' + idx + '.learner_response', value);
+      window.API_1484_11.SetValue('cmi.interactions.' + idx + '.result', 'correct');
+      window.API_1484_11.SetValue('cmi.interactions.' + idx + '.timestamp', timestamp);
       
-      // Salvar como interação SCORM padrão
-      const interactionId = questionInfo.id;
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.id', interactionId);
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.type', 'choice');
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.description', questionInfo.label);
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.learner_response', value);
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.result', 'correct');
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.timestamp', timestamp);
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.weighting', '1');
-      window.API_1484_11.SetValue('cmi.interactions.' + index + '.latency', sessionTime);
+      console.log('  ✓', (index + 1) + '.', questionInfo.label, '=', value);
       
-      // CRÍTICO: Salvar também em objectives para relatórios Moodle
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.id', interactionId);
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.description', questionInfo.label);
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.success_status', 'passed');
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.completion_status', 'completed');
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.score.raw', '100');
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.score.min', '0');
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.score.max', '100');
-      window.API_1484_11.SetValue('cmi.objectives.' + index + '.score.scaled', '1');
-      
-      console.log((index + 1) + '. [' + questionInfo.section + '] ' + questionInfo.label + ': ' + value);
+      // Fazer commit após cada interação para garantir gravação
+      window.API_1484_11.Commit('');
     });
     
-    // Salvar dados estruturados em múltiplos campos
-    window.API_1484_11.SetValue('cmi.suspend_data', JSON.stringify(structuredData));
+    // PASSO 3: Salvar objetivos (Moodle usa muito isso)
+    console.log('\\n🎯 PASSO 3: Salvando objetivos...');
+    formEntries.forEach(function(entry, index) {
+      const fieldName = entry[0];
+      const questionInfo = getQuestionInfo(fieldName);
+      const idx = String(index);
+      
+      window.API_1484_11.SetValue('cmi.objectives.' + idx + '.id', questionInfo.id);
+      window.API_1484_11.SetValue('cmi.objectives.' + idx + '.success_status', 'passed');
+      window.API_1484_11.SetValue('cmi.objectives.' + idx + '.completion_status', 'completed');
+      window.API_1484_11.SetValue('cmi.objectives.' + idx + '.score.scaled', '1');
+      
+      // Commit após cada objetivo
+      window.API_1484_11.Commit('');
+    });
+    console.log('  ✓ Total de objetivos:', formEntries.length);
     
-    // Backup em comments_from_learner
-    const summaryText = 'AVALIAÇÃO COMPLETA - ' + formEntries.length + ' respostas em ' + timestamp;
-    window.API_1484_11.SetValue('cmi.comments_from_learner.0.comment', summaryText);
+    // PASSO 4: Criar dados estruturados
+    console.log('\\n💾 PASSO 4: Salvando dados estruturados...');
+    const allResponses = {};
+    formEntries.forEach(function(entry) {
+      const fieldName = entry[0];
+      const value = entry[1];
+      const questionInfo = getQuestionInfo(fieldName);
+      allResponses[questionInfo.id] = {
+        question: questionInfo.label,
+        answer: value,
+        section: questionInfo.section
+      };
+    });
+    
+    const suspendData = JSON.stringify({
+      completed: true,
+      timestamp: timestamp,
+      duration: sessionTime,
+      responses: allResponses
+    });
+    
+    window.API_1484_11.SetValue('cmi.suspend_data', suspendData);
+    window.API_1484_11.Commit('');
+    console.log('  ✓ Suspend data salvo');
+    
+    // PASSO 5: Salvar em cmi.comments (backup legível)
+    console.log('\\n💬 PASSO 5: Salvando comentários...');
+    let commentText = 'RESPOSTAS DA AVALIAÇÃO:\\n';
+    formEntries.forEach(function(entry, index) {
+      const fieldName = entry[0];
+      const value = entry[1];
+      const questionInfo = getQuestionInfo(fieldName);
+      commentText += (index + 1) + '. ' + questionInfo.label + ': ' + value + '\\n';
+    });
+    
+    window.API_1484_11.SetValue('cmi.comments_from_learner.0.comment', commentText);
     window.API_1484_11.SetValue('cmi.comments_from_learner.0.timestamp', timestamp);
-    window.API_1484_11.SetValue('cmi.comments_from_learner.0.location', 'final_submission');
+    window.API_1484_11.Commit('');
+    console.log('  ✓ Comentário salvo');
     
-    // Tempos
-    window.API_1484_11.SetValue('cmi.session_time', sessionTime);
-    window.API_1484_11.SetValue('cmi.total_time', sessionTime);
-    
-    // Pontuação - CRÍTICO para relatórios Moodle
+    // PASSO 6: Definir pontuação e status final
+    console.log('\\n📊 PASSO 6: Definindo status final...');
     window.API_1484_11.SetValue('cmi.score.raw', '100');
     window.API_1484_11.SetValue('cmi.score.min', '0');
     window.API_1484_11.SetValue('cmi.score.max', '100');
     window.API_1484_11.SetValue('cmi.score.scaled', '1');
-    
-    // Status de conclusão - CRÍTICO
     window.API_1484_11.SetValue('cmi.completion_status', 'completed');
     window.API_1484_11.SetValue('cmi.success_status', 'passed');
     window.API_1484_11.SetValue('cmi.progress_measure', '1');
-    window.API_1484_11.SetValue('cmi.exit', 'normal');
-    window.API_1484_11.SetValue('cmi.location', 'final_page');
     
-    console.log('═══════════════════════════════════════');
-    console.log('💾 Fazendo COMMIT dos dados...');
+    console.log('  ✓ Status: completed');
+    console.log('  ✓ Success: passed');
+    console.log('  ✓ Score: 100/100');
     
-    // COMMIT CRÍTICO
-    const commitResult = window.API_1484_11.Commit('');
+    // PASSO 7: COMMIT FINAL CRÍTICO
+    console.log('\\n🔒 PASSO 7: COMMIT FINAL...');
+    const finalCommit = window.API_1484_11.Commit('');
     
-    if (commitResult === 'true' || commitResult === true) {
-      console.log('✅ SUCESSO! Dados gravados no LMS');
-      console.log('Total de interações: ' + formEntries.length);
-      console.log('Total de objetivos: ' + formEntries.length);
-      console.log('Status: COMPLETED');
-      console.log('Score: 100/100');
-      console.log('Duração: ' + sessionTime);
+    if (finalCommit === 'true' || finalCommit === true) {
+      console.log('✅ ✅ ✅ SUCESSO TOTAL! ✅ ✅ ✅');
+      console.log('═══════════════════════════════════════');
+      console.log('Todas as respostas foram salvas no LMS');
+      console.log('Total de interações:', formEntries.length);
+      console.log('Total de objetivos:', formEntries.length);
       console.log('═══════════════════════════════════════');
       
-      // Verificação pós-commit
+      // Verificação final
       setTimeout(function() {
-        const verifyStatus = window.API_1484_11.GetValue('cmi.completion_status');
-        const verifyScore = window.API_1484_11.GetValue('cmi.score.raw');
-        const verifySuspend = window.API_1484_11.GetValue('cmi.suspend_data');
+        console.log('\\n🔍 VERIFICAÇÃO FINAL:');
+        const savedStatus = window.API_1484_11.GetValue('cmi.completion_status');
+        const savedScore = window.API_1484_11.GetValue('cmi.score.raw');
+        const savedData = window.API_1484_11.GetValue('cmi.suspend_data');
         
-        console.log('🔍 VERIFICAÇÃO PÓS-COMMIT:');
-        console.log('  Status: ' + verifyStatus);
-        console.log('  Score: ' + verifyScore);
-        console.log('  Suspend Data: ' + (verifySuspend ? verifySuspend.substring(0, 100) + '...' : 'VAZIO'));
+        console.log('  Status recuperado:', savedStatus);
+        console.log('  Score recuperado:', savedScore);
+        console.log('  Suspend data:', savedData ? 'OK (' + savedData.length + ' chars)' : 'VAZIO');
         
-        if (verifyStatus === 'completed' && verifyScore === '100') {
-          console.log('✅ Dados confirmados no LMS!');
+        if (savedStatus === 'completed' && savedScore === '100') {
+          console.log('\\n✅ CONFIRMADO: Dados gravados com sucesso!');
         } else {
-          console.warn('⚠️ Possível problema na gravação');
+          console.warn('\\n⚠️ ATENÇÃO: Possível problema na gravação');
+          console.warn('  Status esperado: completed, recebido:', savedStatus);
+          console.warn('  Score esperado: 100, recebido:', savedScore);
         }
-      }, 500);
+      }, 1000);
       
     } else {
-      console.error('❌ FALHA NO COMMIT!');
+      console.error('❌ FALHA NO COMMIT FINAL!');
       const errorCode = window.API_1484_11.GetLastError();
       const errorString = window.API_1484_11.GetErrorString(errorCode);
-      console.error('Erro ' + errorCode + ': ' + errorString);
+      const diagnostic = window.API_1484_11.GetDiagnostic(errorCode);
+      
+      console.error('  Código de erro:', errorCode);
+      console.error('  Mensagem:', errorString);
+      console.error('  Diagnóstico:', diagnostic);
+      
+      alert('Erro ao salvar dados: ' + errorString);
     }
     
   } catch (e) {
-    console.error('❌ ERRO CRÍTICO:', e);
+    console.error('❌ ERRO CRÍTICO durante o envio:', e);
+    console.error('Stack trace:', e.stack);
+    
     if (window.API_1484_11) {
       const errorCode = window.API_1484_11.GetLastError();
-      console.error('Código SCORM: ' + errorCode);
+      const errorString = window.API_1484_11.GetErrorString(errorCode);
+      console.error('Erro SCORM:', errorCode, '-', errorString);
     }
+    
+    alert('Erro crítico ao salvar: ' + e.message);
   }
 }
 
@@ -488,44 +525,47 @@ function terminateSCORM() {
   if (!scormInitialized) return;
   
   try {
-    console.log('🔚 Finalizando SCORM...');
+    console.log('\\n🔚 Finalizando sessão SCORM...');
     
-    // Commit final
+    // Commit final antes de terminar
     window.API_1484_11.Commit('');
     
-    // Aguardar 200ms para garantir gravação
+    // Aguardar para garantir gravação
     const start = new Date().getTime();
-    while (new Date().getTime() < start + 200);
+    while (new Date().getTime() < start + 300);
     
     const result = window.API_1484_11.Terminate('');
     
     if (result === 'true' || result === true) {
-      console.log('✅ SCORM finalizado com sucesso');
+      console.log('✅ Sessão SCORM finalizada com sucesso');
       scormInitialized = false;
+    } else {
+      console.error('❌ Erro ao finalizar SCORM');
     }
   } catch (e) {
-    console.error('Erro ao finalizar SCORM:', e);
+    console.error('❌ Erro ao finalizar:', e);
   }
 }
 
-// Inicializar quando a página carregar
+// Inicializar
 window.addEventListener('load', function() {
-  console.log('🚀 Iniciando Avaliação SCORM para Moodle');
+  console.log('🚀 Avaliação SCORM - Versão Moodle Otimizada');
+  console.log('Iniciando em:', new Date().toLocaleString('pt-BR'));
   initializeSCORM();
   
   const form = document.getElementById('evaluationForm');
   const successMessage = document.getElementById('successMessage');
   
   if (!form) {
-    console.error('❌ Formulário não encontrado');
+    console.error('❌ Formulário não encontrado!');
     return;
   }
   
   form.addEventListener('submit', function(e) {
     e.preventDefault();
-    console.log('📋 Formulário submetido');
+    console.log('\\n📋 Formulário submetido pelo usuário');
     
-    // Validar campos obrigatórios
+    // Validação
     const requiredFields = form.querySelectorAll('[required]');
     const radioGroups = {};
     
@@ -539,7 +579,7 @@ window.addEventListener('load', function() {
     for (const name in radioGroups) {
       if (!form.querySelector('[name="' + name + '"]:checked')) {
         allFilled = false;
-        console.warn('⚠ Campo não preenchido:', name);
+        console.warn('⚠️ Campo não preenchido:', name);
         break;
       }
     }
@@ -549,7 +589,7 @@ window.addEventListener('load', function() {
       return;
     }
     
-    console.log('✓ Validação OK - todas as questões respondidas');
+    console.log('✅ Validação OK');
     
     const formData = new FormData(form);
     submitToSCORM(formData);
@@ -557,34 +597,30 @@ window.addEventListener('load', function() {
     form.style.display = 'none';
     successMessage.style.display = 'block';
     
-    // Aguardar 5 segundos antes de terminar (tempo para LMS processar)
+    // Aguardar antes de terminar
     setTimeout(function() {
-      console.log('⏰ Aguardando 5 segundos antes de finalizar...');
       terminateSCORM();
-    }, 5000);
+    }, 3000);
   });
   
-  // Auto-save a cada 60 segundos
+  // Auto-save periódico
   setInterval(function() {
     if (scormInitialized) {
       window.API_1484_11.Commit('');
-      console.log('💾 Progresso salvo automaticamente');
     }
-  }, 60000);
+  }, 30000);
 });
 
-// Salvar dados antes de sair
+// Salvar antes de sair
 window.addEventListener('beforeunload', function() {
   if (scormInitialized) {
-    console.log('👋 Página sendo fechada - salvando dados...');
+    console.log('👋 Página sendo fechada...');
     window.API_1484_11.Commit('');
-    // Aguardar 200ms para garantir gravação
     const start = new Date().getTime();
-    while (new Date().getTime() < start + 200);
+    while (new Date().getTime() < start + 300);
   }
 });
 
-// Tratamento final de fechamento
 window.addEventListener('unload', function() {
   if (scormInitialized) {
     terminateSCORM();
