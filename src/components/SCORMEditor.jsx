@@ -1,513 +1,673 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Plus, Trash2, Edit2, Save, X, Eye, Settings, FileText, Copy } from 'lucide-react';
+import { Download, Plus, Trash2, Save, Eye, FileText, Edit2 } from 'lucide-react';
 import { generateSCORMPackage } from '../utils/scormGenerator';
 import { uuidv4 } from '../utils/uuid';
 
 const SCORMEditor = ({ onSave, evaluations }) => {
-  const [mode, setMode] = useState('edit');
-  const [currentEvaluation, setCurrentEvaluation] = useState(null);
   const [formData, setFormData] = useState({
     id: uuidv4(),
     title: 'Avaliação do Módulo',
-    subtitle: 'Princípios Institucionais da Advocacia de Estado',
-    institution: 'Escola Superior de Advocacia Pública (ESAP) - PGE-RJ',
-    deadline: '29/08/2025',
-    generalQuestions: [
-      { id: 1, text: 'Frequentei e acompanhei com empenho todas as aulas do Módulo', type: 'scale', scaleLabels: ['Nem tanto', 'Sempre'] },
-      { id: 2, text: 'Tinha experiência e conhecimento anterior sobre o tema exposto', type: 'scale', scaleLabels: ['Pouco', 'Muito'] },
-      { id: 3, text: 'Senti-me motivado pelo conjunto: disciplina/tema, professores e abordagem', type: 'scale', scaleLabels: ['Nada', 'Muito'] },
-      { id: 4, text: 'O módulo mudou minha percepção sobre o tema', type: 'scale', scaleLabels: ['Nada', 'Muito'] },
-      { id: 5, text: 'Importância da disciplina na minha formação', type: 'scale', scaleLabels: ['Irrelevante', 'Essencial'] },
-      { id: 6, text: 'Qualidade do material didático disponibilizado', type: 'scale', scaleLabels: ['Superficial', 'Elaborado'] },
-      { id: 7, text: 'Grau de dificuldade do conteúdo exposto', type: 'scale', scaleLabels: ['Trivial / muito fácil', 'Complexo / muito difícil'] },
-      { id: 8, text: 'Abordagem do tema em relação às minhas expectativas', type: 'scale', scaleLabels: ['Frustrou minhas expectativas', 'Superou minhas expectativas'] },
-      { id: 9, text: 'Duração do módulo como um todo', type: 'scale', scaleLabels: ['Insuficiente (pouco tempo)', 'Excessivo (mais tempo do que o necessário)'] }
-    ],
-    classes: [
+    header: {
+      greeting: 'Prezados alunos,',
+      paragraphs: [
+        'A Escola Superior de Advocacia Pública (ESAP) da PGE-RJ tem a satisfação de tê-los como alunos do curso de Pós-graduação em Direito e Advocacia Pública.',
+        'Com o encerramento do Módulo de Princípios Institucionais da Advocacia de Estado, gostaríamos de solicitar encarecidamente a participação de todos na avaliação, com a finalidade de ajudar-nos a aprimorar nosso trabalho e manter sempre o elevado padrão de excelência que almejamos para o Programa de Pós-Graduação da ESAP.',
+        'Sua opinião é muito importante. Você não será identificado e a participação levará cerca de 5 minutos.'
+      ],
+      deadline: 'O formulário ficará disponível até o dia 29/08/2025',
+      closing: 'Agradecemos desde já pela colaboração!\n\nAtenciosamente,\nCoordenadoria de Ensino – ESAP'
+    },
+    sections: [
       {
-        id: 1,
-        title: 'AULA 01',
-        theme: 'A Advocacia Pública na Constituição da República',
-        professor: 'Diego Fabião',
-        syllabus: 'A Advocacia Pública na Constituição Federal. Advocacia Pública e Federação. Advocacia-Geral da União, Procuradorias dos Estados e do Distrito Federal e Procuradorias Municipais.',
+        id: uuidv4(),
+        title: 'Para iniciar, gostaríamos de saber um pouco sobre você',
+        subtitle: 'Sua sinceridade é importante! :-) E não se preocupe: você não será identificado(a).',
         questions: [
-          { id: 1, text: 'Clareza na exposição do tema', type: 'scale', scaleLabels: ['Confuso', 'Elucidante'] },
-          { id: 2, text: 'Conhecimento sobre o assunto', type: 'scale', scaleLabels: ['Limitado', 'Profundo'] },
-          { id: 3, text: 'Utilização do tempo dedicado à exposição', type: 'scale', scaleLabels: ['Insuficiente', 'Suficiente'] },
-          { id: 4, text: 'Empatia com os alunos', type: 'scale', scaleLabels: ['Indiferente', 'Atencioso'] },
-          { id: 5, text: 'Utilização dos recursos áudio-visuais', type: 'scale', scaleLabels: ['Precário', 'Excelente'] },
-          { id: 6, text: 'Pontualidade', type: 'scale', scaleLabels: ['Impontual', 'Pontual'] }
+          {
+            id: uuidv4(),
+            text: 'Meu gênero é:',
+            type: 'single',
+            required: true,
+            options: ['Feminino', 'Masculino', 'Prefiro não informar']
+          },
+          {
+            id: uuidv4(),
+            text: 'Por favor nos informe sua Turma',
+            type: 'single',
+            required: true,
+            options: ['Turma A', 'Turma B', 'Turma C', 'Turma D', 'Turma E']
+          },
+          {
+            id: uuidv4(),
+            text: 'Por favor nos informe sua faixa etária',
+            type: 'single',
+            required: true,
+            options: ['Entre 20 e 24 anos', 'Entre 25 a 29 anos', 'Entre 30 a 34 anos', 'Mais do que 34 anos']
+          }
+        ]
+      },
+      {
+        id: uuidv4(),
+        title: 'Agora gostaríamos de saber como foi sua interação com o módulo',
+        subtitle: '',
+        questions: [
+          {
+            id: uuidv4(),
+            text: 'Frequentei e acompanhei com empenho todas as aulas do Módulo',
+            type: 'scale',
+            required: true,
+            scaleLabels: ['Nem tanto', 'Sempre']
+          },
+          {
+            id: uuidv4(),
+            text: 'Tinha experiência e conhecimento anterior sobre o tema exposto',
+            type: 'scale',
+            required: true,
+            scaleLabels: ['Pouco', 'Muito']
+          },
+          {
+            id: uuidv4(),
+            text: 'Senti-me motivado pelo conjunto: disciplina/tema, professores e abordagem',
+            type: 'scale',
+            required: true,
+            scaleLabels: ['Nada', 'Muito']
+          }
         ]
       }
     ]
   });
 
-  const updateFormField = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const [editingHeader, setEditingHeader] = useState(false);
+
+  // Atualizar título
+  const updateTitle = (value) => {
+    setFormData(prev => ({ ...prev, title: value }));
   };
 
-  const updateClass = (classId, field, value) => {
+  // Atualizar cabeçalho
+  const updateHeader = (field, value) => {
     setFormData(prev => ({
       ...prev,
-      classes: prev.classes.map(c => 
-        c.id === classId ? { ...c, [field]: value } : c
+      header: { ...prev.header, [field]: value }
+    }));
+  };
+
+  const updateHeaderParagraph = (index, value) => {
+    setFormData(prev => {
+      const newParagraphs = [...prev.header.paragraphs];
+      newParagraphs[index] = value;
+      return {
+        ...prev,
+        header: { ...prev.header, paragraphs: newParagraphs }
+      };
+    });
+  };
+
+  const addHeaderParagraph = () => {
+    setFormData(prev => ({
+      ...prev,
+      header: {
+        ...prev.header,
+        paragraphs: [...prev.header.paragraphs, 'Novo parágrafo...']
+      }
+    }));
+  };
+
+  const removeHeaderParagraph = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      header: {
+        ...prev.header,
+        paragraphs: prev.header.paragraphs.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  // Adicionar nova seção
+  const addSection = () => {
+    const newSection = {
+      id: uuidv4(),
+      title: 'Nova Seção',
+      subtitle: '',
+      questions: []
+    };
+    setFormData(prev => ({
+      ...prev,
+      sections: [...prev.sections, newSection]
+    }));
+  };
+
+  // Remover seção
+  const removeSection = (sectionId) => {
+    setFormData(prev => ({
+      ...prev,
+      sections: prev.sections.filter(s => s.id !== sectionId)
+    }));
+  };
+
+  // Atualizar seção
+  const updateSection = (sectionId, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      sections: prev.sections.map(s =>
+        s.id === sectionId ? { ...s, [field]: value } : s
       )
     }));
   };
 
-  const updateClassQuestion = (classId, questionId, field, value) => {
+  // Adicionar pergunta a uma seção
+  const addQuestion = (sectionId, type = 'single') => {
+    const newQuestion = {
+      id: uuidv4(),
+      text: 'Nova pergunta',
+      type: type,
+      required: true,
+      ...(type === 'single' || type === 'multiple' ? { options: ['Opção 1', 'Opção 2'] } : {}),
+      ...(type === 'scale' ? { scaleLabels: ['Mínimo', 'Máximo'] } : {}),
+    };
+
     setFormData(prev => ({
       ...prev,
-      classes: prev.classes.map(c => 
-        c.id === classId 
+      sections: prev.sections.map(s =>
+        s.id === sectionId
+          ? { ...s, questions: [...s.questions, newQuestion] }
+          : s
+      )
+    }));
+  };
+
+  // Remover pergunta
+  const removeQuestion = (sectionId, questionId) => {
+    setFormData(prev => ({
+      ...prev,
+      sections: prev.sections.map(s =>
+        s.id === sectionId
+          ? { ...s, questions: s.questions.filter(q => q.id !== questionId) }
+          : s
+      )
+    }));
+  };
+
+  // Atualizar pergunta
+  const updateQuestion = (sectionId, questionId, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      sections: prev.sections.map(s =>
+        s.id === sectionId
           ? {
-              ...c,
-              questions: c.questions.map(q =>
+              ...s,
+              questions: s.questions.map(q =>
                 q.id === questionId ? { ...q, [field]: value } : q
               )
             }
-          : c
+          : s
       )
     }));
   };
 
-  const addNewClass = () => {
-    const newId = Math.max(...formData.classes.map(c => c.id), 0) + 1;
+  // Adicionar opção a uma pergunta
+  const addOption = (sectionId, questionId) => {
     setFormData(prev => ({
       ...prev,
-      classes: [...prev.classes, {
-        id: newId,
-        title: `AULA ${String(newId).padStart(2, '0')}`,
-        theme: 'Novo Tema',
-        professor: 'Nome do Professor',
-        syllabus: 'Descreva a ementa da aula...',
-        questions: [
-          { id: 1, text: 'Clareza na exposição do tema', type: 'scale', scaleLabels: ['Confuso', 'Elucidante'] },
-          { id: 2, text: 'Conhecimento sobre o assunto', type: 'scale', scaleLabels: ['Limitado', 'Profundo'] },
-          { id: 3, text: 'Pontualidade', type: 'scale', scaleLabels: ['Impontual', 'Pontual'] }
-        ]
-      }]
-    }));
-  };
-
-  const addQuestionToClass = (classId) => {
-    setFormData(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => {
-        if (c.id === classId) {
-          const newId = Math.max(...c.questions.map(q => q.id), 0) + 1;
-          return {
-            ...c,
-            questions: [...c.questions, {
-              id: newId,
-              text: 'Nova pergunta',
-              type: 'scale',
-              scaleLabels: ['Mínimo', 'Máximo']
-            }]
-          };
-        }
-        return c;
-      })
-    }));
-  };
-
-  const removeQuestionFromClass = (classId, questionId) => {
-    setFormData(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => 
-        c.id === classId 
-          ? { ...c, questions: c.questions.filter(q => q.id !== questionId) }
-          : c
+      sections: prev.sections.map(s =>
+        s.id === sectionId
+          ? {
+              ...s,
+              questions: s.questions.map(q =>
+                q.id === questionId
+                  ? { ...q, options: [...(q.options || []), 'Nova opção'] }
+                  : q
+              )
+            }
+          : s
       )
     }));
   };
 
-  const addGeneralQuestion = () => {
-    const newId = Math.max(...formData.generalQuestions.map(q => q.id), 0) + 1;
+  // Remover opção
+  const removeOption = (sectionId, questionId, optionIndex) => {
     setFormData(prev => ({
       ...prev,
-      generalQuestions: [...prev.generalQuestions, {
-        id: newId,
-        text: 'Nova pergunta geral',
-        type: 'scale',
-        scaleLabels: ['Mínimo', 'Máximo']
-      }]
+      sections: prev.sections.map(s =>
+        s.id === sectionId
+          ? {
+              ...s,
+              questions: s.questions.map(q =>
+                q.id === questionId
+                  ? { ...q, options: q.options.filter((_, i) => i !== optionIndex) }
+                  : q
+              )
+            }
+          : s
+      )
     }));
   };
 
-  const removeGeneralQuestion = (questionId) => {
+  // Atualizar opção
+  const updateOption = (sectionId, questionId, optionIndex, value) => {
     setFormData(prev => ({
       ...prev,
-      generalQuestions: prev.generalQuestions.filter(q => q.id !== questionId)
+      sections: prev.sections.map(s =>
+        s.id === sectionId
+          ? {
+              ...s,
+              questions: s.questions.map(q =>
+                q.id === questionId
+                  ? {
+                      ...q,
+                      options: q.options.map((opt, i) => (i === optionIndex ? value : opt))
+                    }
+                  : q
+              )
+            }
+          : s
+      )
     }));
   };
 
-  const removeClass = (classId) => {
-    if (confirm('Tem certeza que deseja remover esta aula?')) {
-      setFormData(prev => ({
-        ...prev,
-        classes: prev.classes.filter(c => c.id !== classId)
-      }));
-    }
-  };
-
+  // Salvar avaliação
   const handleSave = () => {
-    onSave(formData);
+    const evaluation = {
+      ...formData,
+      updatedAt: new Date().toISOString()
+    };
+    onSave(evaluation);
     alert('Avaliação salva com sucesso!');
   };
 
-  const handleExportSCORM = async () => {
-    try {
-      await generateSCORMPackage(formData);
-      alert('Pacote SCORM gerado com sucesso! Verifique seus downloads.');
-    } catch (error) {
-      console.error('Erro ao gerar SCORM:', error);
-      alert('Erro ao gerar pacote SCORM. Verifique o console para mais detalhes.');
-    }
-  };
-
-  const loadEvaluation = (evaluation) => {
-    setFormData(evaluation);
-    setCurrentEvaluation(evaluation);
-  };
-
-  const createNewEvaluation = () => {
-    setFormData({
-      id: uuidv4(),
-      title: 'Nova Avaliação',
-      subtitle: '',
-      institution: '',
-      deadline: '',
-      generalQuestions: [],
-      classes: []
-    });
-    setCurrentEvaluation(null);
+  // Exportar SCORM
+  const handleExportSCORM = () => {
+    generateSCORMPackage(formData);
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Header com ações */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => updateFormField('title', e.target.value)}
-              className="text-3xl font-bold text-gray-900 w-full border-0 border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none transition-colors"
-              placeholder="Título da Avaliação"
-            />
-            <input
-              type="text"
-              value={formData.subtitle}
-              onChange={(e) => updateFormField('subtitle', e.target.value)}
-              className="text-lg text-gray-600 mt-2 w-full border-0 border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none transition-colors"
-              placeholder="Subtítulo"
-            />
-          </div>
-          <div className="flex gap-2 ml-4">
-            <button
-              onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              {mode === 'edit' ? <Eye size={20} /> : <Settings size={20} />}
-              {mode === 'edit' ? 'Visualizar' : 'Editar'}
-            </button>
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-blue-600 flex items-center gap-2">
+            <FileText className="w-8 h-8" />
+            Editor de Formulários SCORM
+          </h1>
+          <div className="flex gap-2">
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
             >
-              <Save size={20} />
+              <Save className="w-4 h-4" />
               Salvar
             </button>
             <button
               onClick={handleExportSCORM}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
             >
-              <Download size={20} />
+              <Download className="w-4 h-4" />
               Exportar SCORM
             </button>
           </div>
         </div>
-        
-        <textarea
-          value={formData.institution}
-          onChange={(e) => updateFormField('institution', e.target.value)}
-          className="w-full text-sm text-gray-500 border-0 border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none transition-colors resize-none"
-          rows={2}
-          placeholder="Instituição"
-        />
-        
-        <div className="mt-4">
-          <label className="text-sm font-medium text-gray-700">Data Limite:</label>
+
+        {/* Título do Formulário */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Título do Formulário
+          </label>
           <input
-            type="date"
-            value={formData.deadline}
-            onChange={(e) => updateFormField('deadline', e.target.value)}
-            className="ml-2 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            type="text"
+            value={formData.title}
+            onChange={(e) => updateTitle(e.target.value)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-2xl font-bold"
+            placeholder="Título do formulário"
           />
+        </div>
+
+        {/* Cabeçalho/Introdução */}
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-purple-900 flex items-center gap-2">
+              <Edit2 className="w-5 h-5" />
+              Cabeçalho / Introdução
+            </h2>
+            <button
+              onClick={() => setEditingHeader(!editingHeader)}
+              className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+            >
+              {editingHeader ? 'Visualizar' : 'Editar'}
+            </button>
+          </div>
+
+          {editingHeader ? (
+            <div className="space-y-4">
+              {/* Saudação */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Saudação
+                </label>
+                <input
+                  type="text"
+                  value={formData.header.greeting}
+                  onChange={(e) => updateHeader('greeting', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="Ex: Prezados alunos,"
+                />
+              </div>
+
+              {/* Parágrafos */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Parágrafos do Texto
+                  </label>
+                  <button
+                    onClick={addHeaderParagraph}
+                    className="text-purple-600 hover:text-purple-800 text-sm font-medium flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar Parágrafo
+                  </button>
+                </div>
+                {formData.header.paragraphs.map((paragraph, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <textarea
+                      value={paragraph}
+                      onChange={(e) => updateHeaderParagraph(index, e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      rows="3"
+                      placeholder={`Parágrafo ${index + 1}`}
+                    />
+                    <button
+                      onClick={() => removeHeaderParagraph(index)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Prazo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Prazo / Data Limite
+                </label>
+                <input
+                  type="text"
+                  value={formData.header.deadline}
+                  onChange={(e) => updateHeader('deadline', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="Ex: O formulário ficará disponível até..."
+                />
+              </div>
+
+              {/* Despedida */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Despedida / Assinatura
+                </label>
+                <textarea
+                  value={formData.header.closing}
+                  onChange={(e) => updateHeader('closing', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  rows="4"
+                  placeholder="Ex: Agradecemos desde já...\n\nAtenciosamente,\n..."
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white p-4 rounded-lg border border-gray-200 prose max-w-none">
+              <p className="font-medium mb-2">{formData.header.greeting}</p>
+              {formData.header.paragraphs.map((paragraph, index) => (
+                <p key={index} className="mb-2">{paragraph}</p>
+              ))}
+              <p className="italic text-gray-700 mb-2">{formData.header.deadline}</p>
+              <p className="whitespace-pre-line text-gray-800">{formData.header.closing}</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Avaliações salvas */}
-      {evaluations.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Avaliações Salvas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {evaluations.map(evaluation => (
-              <div
-                key={evaluation.id}
-                className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 cursor-pointer transition-colors"
-                onClick={() => loadEvaluation(evaluation)}
-              >
-                <h3 className="font-semibold text-gray-900">{evaluation.title}</h3>
-                <p className="text-sm text-gray-600 mt-1">{evaluation.subtitle}</p>
-                <p className="text-xs text-gray-500 mt-2">{evaluation.classes.length} aulas</p>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={createNewEvaluation}
-            className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            Nova Avaliação
-          </button>
-        </div>
-      )}
-
-      {mode === 'edit' ? (
-        <>
-          {/* Perguntas Gerais */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Perguntas Gerais do Módulo</h2>
-              <button
-                onClick={addGeneralQuestion}
-                className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-              >
-                <Plus size={16} />
-                Adicionar Pergunta
-              </button>
+      {/* Seções de Perguntas */}
+      {formData.sections.map((section, sectionIndex) => (
+        <div key={section.id} className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={section.title}
+                onChange={(e) => updateSection(section.id, 'title', e.target.value)}
+                className="w-full text-xl font-bold text-gray-800 border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none px-2 py-1"
+                placeholder="Título da Seção"
+              />
+              <input
+                type="text"
+                value={section.subtitle}
+                onChange={(e) => updateSection(section.id, 'subtitle', e.target.value)}
+                className="w-full text-sm text-gray-600 italic border-b border-transparent hover:border-gray-300 focus:border-gray-400 focus:outline-none px-2 py-1 mt-1"
+                placeholder="Subtítulo (opcional)"
+              />
             </div>
-            <div className="space-y-4">
-              {formData.generalQuestions.map((q, idx) => (
-                <div key={q.id} className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50 rounded-r-lg">
-                  <div className="flex gap-2 items-start">
-                    <span className="text-sm font-semibold text-gray-500 mt-2">{idx + 1}.</span>
-                    <input
-                      type="text"
-                      value={q.text}
-                      onChange={(e) => {
-                        const updated = [...formData.generalQuestions];
-                        updated[idx].text = e.target.value;
-                        updateFormField('generalQuestions', updated);
-                      }}
-                      className="flex-1 text-gray-900 border-0 border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none transition-colors bg-transparent"
-                    />
-                    <button
-                      onClick={() => removeGeneralQuestion(q.id)}
-                      className="text-red-600 hover:text-red-700 p-1"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="flex gap-4 mt-2 ml-6 text-sm">
-                    <input
-                      type="text"
-                      value={q.scaleLabels[0]}
-                      onChange={(e) => {
-                        const updated = [...formData.generalQuestions];
-                        updated[idx].scaleLabels[0] = e.target.value;
-                        updateFormField('generalQuestions', updated);
-                      }}
-                      className="w-48 text-gray-600 px-2 py-1 border-0 border-b border-gray-300 focus:border-blue-500 focus:outline-none bg-white rounded"
-                      placeholder="Rótulo inferior"
-                    />
-                    <span className="text-gray-400">→</span>
-                    <input
-                      type="text"
-                      value={q.scaleLabels[1]}
-                      onChange={(e) => {
-                        const updated = [...formData.generalQuestions];
-                        updated[idx].scaleLabels[1] = e.target.value;
-                        updateFormField('generalQuestions', updated);
-                      }}
-                      className="w-48 text-gray-600 px-2 py-1 border-0 border-b border-gray-300 focus:border-blue-500 focus:outline-none bg-white rounded"
-                      placeholder="Rótulo superior"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <button
+              onClick={() => removeSection(section.id)}
+              className="text-red-500 hover:text-red-700 ml-4"
+              title="Remover seção"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Aulas */}
-          <div className="space-y-6">
-            {formData.classes.map((classItem) => (
-              <div key={classItem.id} className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex justify-between items-start mb-4">
+          {/* Perguntas da Seção */}
+          <div className="space-y-4 mb-4">
+            {section.questions.map((question, qIndex) => (
+              <div key={question.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <span className="bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold">
+                    {qIndex + 1}
+                  </span>
                   <div className="flex-1">
-                    <input
-                      type="text"
-                      value={classItem.title}
-                      onChange={(e) => updateClass(classItem.id, 'title', e.target.value)}
-                      className="text-xl font-bold text-gray-900 w-full border-0 border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none transition-colors"
-                    />
-                    <input
-                      type="text"
-                      value={classItem.theme}
-                      onChange={(e) => updateClass(classItem.id, 'theme', e.target.value)}
-                      className="text-lg text-blue-600 mt-2 w-full border-0 border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none transition-colors"
+                    <textarea
+                      value={question.text}
+                      onChange={(e) => updateQuestion(section.id, question.id, 'text', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      rows="2"
+                      placeholder="Texto da pergunta"
                     />
                   </div>
                   <button
-                    onClick={() => removeClass(classItem.id)}
-                    className="text-red-600 hover:text-red-700 p-2"
+                    onClick={() => removeQuestion(section.id, question.id)}
+                    className="text-red-500 hover:text-red-700"
+                    title="Remover pergunta"
                   >
-                    <Trash2 size={20} />
+                    <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Professor(a):</label>
-                  <input
-                    type="text"
-                    value={classItem.professor}
-                    onChange={(e) => updateClass(classItem.id, 'professor', e.target.value)}
-                    className="input-field"
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ementa:</label>
-                  <textarea
-                    value={classItem.syllabus}
-                    onChange={(e) => updateClass(classItem.id, 'syllabus', e.target.value)}
-                    rows={3}
-                    className="input-field resize-none"
-                  />
-                </div>
-
-                <div className="border-t pt-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-semibold text-gray-900">Perguntas de Avaliação</h3>
-                    <button
-                      onClick={() => addQuestionToClass(classItem.id)}
-                      className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                {/* Tipo de Pergunta */}
+                <div className="ml-11 space-y-3">
+                  <div className="flex gap-4 items-center">
+                    <label className="text-sm font-medium text-gray-700">Tipo:</label>
+                    <select
+                      value={question.type}
+                      onChange={(e) => {
+                        const newType = e.target.value;
+                        const updates = { type: newType };
+                        
+                        if (newType === 'single' || newType === 'multiple') {
+                          updates.options = question.options || ['Opção 1', 'Opção 2'];
+                          delete updates.scaleLabels;
+                        } else if (newType === 'scale') {
+                          updates.scaleLabels = question.scaleLabels || ['Mínimo', 'Máximo'];
+                          delete updates.options;
+                        } else {
+                          delete updates.options;
+                          delete updates.scaleLabels;
+                        }
+                        
+                        setFormData(prev => ({
+                          ...prev,
+                          sections: prev.sections.map(s =>
+                            s.id === section.id
+                              ? {
+                                  ...s,
+                                  questions: s.questions.map(q =>
+                                    q.id === question.id ? { ...q, ...updates } : q
+                                  )
+                                }
+                              : s
+                          )
+                        }));
+                      }}
+                      className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <Plus size={14} />
-                      Adicionar
-                    </button>
+                      <option value="single">Múltipla escolha (uma resposta)</option>
+                      <option value="multiple">Múltipla escolha (várias respostas)</option>
+                      <option value="scale">Escala de 1 a 5</option>
+                      <option value="text">Texto curto</option>
+                      <option value="textarea">Texto longo</option>
+                    </select>
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={question.required}
+                        onChange={(e) => updateQuestion(section.id, question.id, 'required', e.target.checked)}
+                        className="rounded"
+                      />
+                      <span className="text-gray-700">Obrigatória</span>
+                    </label>
                   </div>
-                  <div className="space-y-3">
-                    {classItem.questions.map((q, idx) => (
-                      <div key={q.id} className="bg-gray-50 rounded-lg p-3 relative">
+
+                  {/* Opções para múltipla escolha */}
+                  {(question.type === 'single' || question.type === 'multiple') && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-gray-700">Opções:</label>
                         <button
-                          onClick={() => removeQuestionFromClass(classItem.id, q.id)}
-                          className="absolute top-2 right-2 text-red-600 hover:text-red-700"
+                          onClick={() => addOption(section.id, question.id)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
                         >
-                          <Trash2 size={14} />
+                          <Plus className="w-4 h-4" />
+                          Adicionar Opção
                         </button>
+                      </div>
+                      {question.options.map((option, optIndex) => (
+                        <div key={optIndex} className="flex gap-2 mb-2">
+                          <span className="text-gray-500 mt-2">○</span>
+                          <input
+                            type="text"
+                            value={option}
+                            onChange={(e) => updateOption(section.id, question.id, optIndex, e.target.value)}
+                            className="flex-1 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            placeholder={`Opção ${optIndex + 1}`}
+                          />
+                          {question.options.length > 2 && (
+                            <button
+                              onClick={() => removeOption(section.id, question.id, optIndex)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Labels para escala */}
+                  {question.type === 'scale' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 block mb-1">
+                          Label Mínimo (1):
+                        </label>
                         <input
                           type="text"
-                          value={q.text}
-                          onChange={(e) => updateClassQuestion(classItem.id, q.id, 'text', e.target.value)}
-                          className="w-full pr-8 text-gray-900 mb-2 bg-transparent border-0 border-b border-gray-300 focus:border-blue-500 focus:outline-none"
+                          value={question.scaleLabels[0]}
+                          onChange={(e) => updateQuestion(section.id, question.id, 'scaleLabels', [e.target.value, question.scaleLabels[1]])}
+                          className="w-full px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Ex: Nada"
                         />
-                        <div className="flex gap-4 text-sm">
-                          <input
-                            type="text"
-                            value={q.scaleLabels[0]}
-                            onChange={(e) => {
-                              const newLabels = [...q.scaleLabels];
-                              newLabels[0] = e.target.value;
-                              updateClassQuestion(classItem.id, q.id, 'scaleLabels', newLabels);
-                            }}
-                            className="w-40 text-gray-600 bg-white px-2 py-1 border border-gray-300 rounded"
-                            placeholder="Mínimo"
-                          />
-                          <span className="text-gray-400 self-center">→</span>
-                          <input
-                            type="text"
-                            value={q.scaleLabels[1]}
-                            onChange={(e) => {
-                              const newLabels = [...q.scaleLabels];
-                              newLabels[1] = e.target.value;
-                              updateClassQuestion(classItem.id, q.id, 'scaleLabels', newLabels);
-                            }}
-                            className="w-40 text-gray-600 bg-white px-2 py-1 border border-gray-300 rounded"
-                            placeholder="Máximo"
-                          />
-                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <button
-              onClick={addNewClass}
-              className="w-full py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
-            >
-              <Plus size={24} />
-              Adicionar Nova Aula
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Visualização do Formulário</h2>
-          <p className="text-gray-600 mb-4">Esta é a visualização de como os alunos verão o formulário no Moodle.</p>
-          
-          <div className="space-y-6 border-t pt-6">
-            <h3 className="text-xl font-bold text-gray-900">Perguntas Gerais</h3>
-            {formData.generalQuestions.map((q, idx) => (
-              <div key={q.id} className="pb-4 border-b">
-                <p className="font-medium text-gray-900 mb-3">{idx + 1}. {q.text}</p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-gray-500">{q.scaleLabels[0]}</span>
-                  {[1, 2, 3, 4, 5].map(value => (
-                    <label key={value} className="flex items-center gap-1 cursor-pointer">
-                      <input type="radio" name={`q${q.id}`} value={value} className="cursor-pointer" />
-                      <span className="text-sm text-gray-600">{value}</span>
-                    </label>
-                  ))}
-                  <span className="text-sm text-gray-500">{q.scaleLabels[1]}</span>
-                </div>
-              </div>
-            ))}
-
-            {formData.classes.map((classItem) => (
-              <div key={classItem.id} className="bg-blue-50 rounded-lg p-6 mt-6">
-                <h3 className="text-xl font-bold text-gray-900">{classItem.title}</h3>
-                <h4 className="text-lg text-blue-600 mb-2">{classItem.theme}</h4>
-                <p className="text-sm text-gray-700 mb-1"><strong>Professor(a):</strong> {classItem.professor}</p>
-                <p className="text-sm text-gray-600 mb-4">{classItem.syllabus}</p>
-                
-                <div className="space-y-4 bg-white rounded-lg p-4">
-                  {classItem.questions.map((q, idx) => (
-                    <div key={q.id} className="pb-3 border-b last:border-b-0">
-                      <p className="font-medium text-gray-900 mb-2">{q.text}</p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-gray-500">{q.scaleLabels[0]}</span>
-                        {[1, 2, 3, 4, 5].map(value => (
-                          <label key={value} className="flex items-center gap-1 cursor-pointer">
-                            <input type="radio" name={`class${classItem.id}q${q.id}`} value={value} className="cursor-pointer" />
-                            <span className="text-sm text-gray-600">{value}</span>
-                          </label>
-                        ))}
-                        <span className="text-sm text-gray-500">{q.scaleLabels[1]}</span>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 block mb-1">
+                          Label Máximo (5):
+                        </label>
+                        <input
+                          type="text"
+                          value={question.scaleLabels[1]}
+                          onChange={(e) => updateQuestion(section.id, question.id, 'scaleLabels', [question.scaleLabels[0], e.target.value])}
+                          className="w-full px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Ex: Muito"
+                        />
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Botões para Adicionar Pergunta */}
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => addQuestion(section.id, 'single')}
+              className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition flex items-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Múltipla Escolha
+            </button>
+            <button
+              onClick={() => addQuestion(section.id, 'scale')}
+              className="bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 transition flex items-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Escala 1-5
+            </button>
+            <button
+              onClick={() => addQuestion(section.id, 'text')}
+              className="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-200 transition flex items-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Texto Curto
+            </button>
+            <button
+              onClick={() => addQuestion(section.id, 'textarea')}
+              className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg hover:bg-orange-200 transition flex items-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Texto Longo
+            </button>
+          </div>
         </div>
-      )}
+      ))}
+
+      {/* Botão Adicionar Seção */}
+      <div className="text-center">
+        <button
+          onClick={addSection}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition flex items-center gap-2 mx-auto shadow-lg"
+        >
+          <Plus className="w-5 h-5" />
+          Adicionar Nova Seção
+        </button>
+      </div>
+
+      {/* Footer Actions */}
+      <div className="bg-white rounded-lg shadow-md p-6 flex justify-center gap-4">
+        <button
+          onClick={handleSave}
+          className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition flex items-center gap-2 shadow-lg text-lg font-semibold"
+        >
+          <Save className="w-5 h-5" />
+          Salvar Avaliação
+        </button>
+        <button
+          onClick={handleExportSCORM}
+          className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-lg text-lg font-semibold"
+        >
+          <Download className="w-5 h-5" />
+          Exportar SCORM
+        </button>
+      </div>
     </div>
   );
 };

@@ -1,10 +1,30 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
+// Função auxiliar para escapar XML
+const escapeXml = (str) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+};
+
+// Função auxiliar para escapar HTML
+const escapeHtml = (str) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
 // Gera o arquivo imsmanifest.xml
 const generateManifest = (formData) => {
-  const timestamp = new Date().toISOString();
-  
   return `<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="com.scorm.avaliacao.${formData.id}" version="1.0"
           xmlns="http://www.imsglobal.org/xsd/imscp_v1p1"
@@ -21,13 +41,12 @@ const generateManifest = (formData) => {
   <metadata>
     <schema>ADL SCORM</schema>
     <schemaversion>2004 4th Edition</schemaversion>
-    <adlcp:location>metadata.xml</adlcp:location>
   </metadata>
   <organizations default="ORG-001">
     <organization identifier="ORG-001">
       <title>${escapeXml(formData.title)}</title>
       <item identifier="ITEM-001" identifierref="RES-001">
-        <title>${escapeXml(formData.subtitle || formData.title)}</title>
+        <title>${escapeXml(formData.title)}</title>
         <adlcp:masteryscore>80</adlcp:masteryscore>
       </item>
     </organization>
@@ -38,112 +57,50 @@ const generateManifest = (formData) => {
       <file href="scorm-api-wrapper.js"/>
       <file href="evaluation.js"/>
       <file href="styles.css"/>
-      <file href="config.json"/>
     </resource>
   </resources>
 </manifest>`;
-};
-
-// Gera o arquivo metadata.xml
-const generateMetadata = (formData) => {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<lom xmlns="http://ltsc.ieee.org/xsd/LOM"
-     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     xsi:schemaLocation="http://ltsc.ieee.org/xsd/LOM lom.xsd">
-  <general>
-    <title>
-      <string language="pt-BR">${escapeXml(formData.title)}</string>
-    </title>
-    <description>
-      <string language="pt-BR">${escapeXml(formData.subtitle || '')}</string>
-    </description>
-    <language>pt-BR</language>
-  </general>
-  <lifecycle>
-    <status>
-      <source>LOMv1.0</source>
-      <value>Final</value>
-    </status>
-  </lifecycle>
-  <technical>
-    <format>text/html</format>
-  </technical>
-  <educational>
-    <learningResourceType>
-      <source>LOMv1.0</source>
-      <value>questionnaire</value>
-    </learningResourceType>
-  </educational>
-</lom>`;
 };
 
 // Gera o wrapper da API SCORM
 const generateScormAPIWrapper = () => {
   return `/**
  * SCORM 2004 API Wrapper
- * Adaptado para funcionar com LMS Moodle
  */
-
 var API_1484_11 = {
   initialized: false,
   terminated: false,
   data: {},
   
   Initialize: function(parameter) {
-    if (this.initialized) {
-      this.SetValue('cmi.core.lesson_status', 'incomplete');
-      return 'false';
-    }
+    if (this.initialized) return 'false';
     this.initialized = true;
     this.data = {
       'cmi.completion_status': 'incomplete',
       'cmi.success_status': 'unknown',
-      'cmi.exit': '',
       'cmi.score.raw': '0',
       'cmi.score.min': '0',
-      'cmi.score.max': '100',
-      'cmi.session_time': 'PT0H0M0S'
+      'cmi.score.max': '100'
     };
     return 'true';
   },
   
   Terminate: function(parameter) {
-    if (!this.initialized || this.terminated) {
-      return 'false';
-    }
+    if (this.terminated) return 'false';
     this.terminated = true;
     return 'true';
   },
   
   GetValue: function(element) {
-    if (!this.initialized || this.terminated) {
-      return '';
-    }
     return this.data[element] || '';
   },
   
   SetValue: function(element, value) {
-    if (!this.initialized || this.terminated) {
-      return 'false';
-    }
     this.data[element] = value;
-    
-    // Salvar no localStorage como backup
-    try {
-      localStorage.setItem('scorm_data_' + element, value);
-    } catch(e) {
-      console.warn('Não foi possível salvar no localStorage:', e);
-    }
-    
     return 'true';
   },
   
   Commit: function(parameter) {
-    if (!this.initialized || this.terminated) {
-      return 'false';
-    }
-    // Aqui seria feito o envio ao LMS
-    console.log('SCORM Data committed:', this.data);
     return 'true';
   },
   
@@ -156,40 +113,85 @@ var API_1484_11 = {
   },
   
   GetDiagnostic: function(errorCode) {
-    return 'No diagnostic available';
+    return 'No error';
   }
 };
 
-// Tentar encontrar a API no parent/opener
+// Tentar encontrar API no LMS
 function findAPI(win) {
-  var attempts = 0;
-  var maxAttempts = 500;
-  
-  while (win.API_1484_11 == null && win.parent != null && win.parent != win && attempts < maxAttempts) {
-    attempts++;
+  var findAPITries = 0;
+  while ((win.API_1484_11 == null) && (win.parent != null) && (win.parent != win)) {
+    findAPITries++;
+    if (findAPITries > 7) return null;
     win = win.parent;
   }
-  
   return win.API_1484_11;
 }
 
-// Procurar API no window ou usar fallback
-var scormAPI = findAPI(window);
-if (!scormAPI && window.opener) {
-  scormAPI = findAPI(window.opener);
-}
-if (!scormAPI) {
-  console.warn('SCORM API não encontrada. Usando implementação local.');
-  scormAPI = API_1484_11;
-}
-
-// Expor globalmente
-window.API_1484_11 = scormAPI;
-`;
+// Usar API do LMS se disponível, senão usar mock
+if (typeof API_1484_11 === 'undefined') {
+  var lmsAPI = findAPI(window);
+  if (lmsAPI != null) {
+    API_1484_11 = lmsAPI;
+  }
+}`;
 };
 
-// Gera o arquivo HTML principal
+// Gera o HTML da avaliação
 const generateHTML = (formData) => {
+  // Função auxiliar para gerar campos de pergunta baseado no tipo
+  const generateQuestionField = (question, namePrefix) => {
+    const questionName = `${namePrefix}_${question.id}`;
+    
+    switch (question.type) {
+      case 'single':
+        return `
+          <div class="options-list">
+            ${question.options.map((option, idx) => `
+              <label class="radio-option">
+                <input type="radio" name="${questionName}" value="${escapeHtml(option)}" ${question.required ? 'required' : ''}>
+                <span>${escapeHtml(option)}</span>
+              </label>
+            `).join('')}
+          </div>`;
+      
+      case 'multiple':
+        return `
+          <div class="options-list">
+            ${question.options.map((option, idx) => `
+              <label class="checkbox-option">
+                <input type="checkbox" name="${questionName}" value="${escapeHtml(option)}">
+                <span>${escapeHtml(option)}</span>
+              </label>
+            `).join('')}
+          </div>`;
+      
+      case 'scale':
+        return `
+          <div class="scale-options">
+            <span class="scale-label">${escapeHtml(question.scaleLabels[0])}</span>
+            ${[1, 2, 3, 4, 5].map(val => `
+              <label class="radio-option scale-radio">
+                <input type="radio" name="${questionName}" value="${val}" ${question.required ? 'required' : ''}>
+                <span class="scale-number">${val}</span>
+              </label>
+            `).join('')}
+            <span class="scale-label">${escapeHtml(question.scaleLabels[1])}</span>
+          </div>`;
+      
+      case 'text':
+        return `
+          <input type="text" name="${questionName}" class="text-input" ${question.required ? 'required' : ''} placeholder="Digite sua resposta">`;
+      
+      case 'textarea':
+        return `
+          <textarea name="${questionName}" class="textarea-input" rows="4" ${question.required ? 'required' : ''} placeholder="Digite sua resposta"></textarea>`;
+      
+      default:
+        return '';
+    }
+  };
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -203,84 +205,42 @@ const generateHTML = (formData) => {
   <div class="container">
     <header class="header">
       <h1>${escapeHtml(formData.title)}</h1>
-      <h2>${escapeHtml(formData.subtitle || '')}</h2>
-      <p class="institution">${escapeHtml(formData.institution || '')}</p>
-      ${formData.deadline ? `<p class="deadline"><strong>Prazo:</strong> ${escapeHtml(formData.deadline)}</p>` : ''}
+      ${formData.header ? `
+        <div class="header-intro">
+          <p class="greeting">${escapeHtml(formData.header.greeting)}</p>
+          ${formData.header.paragraphs.map(p => `<p class="intro-paragraph">${escapeHtml(p)}</p>`).join('')}
+          ${formData.header.deadline ? `<p class="deadline"><em>${escapeHtml(formData.header.deadline)}</em></p>` : ''}
+          ${formData.header.closing ? `<p class="closing">${escapeHtml(formData.header.closing).replace(/\n/g, '<br>')}</p>` : ''}
+        </div>
+      ` : ''}
     </header>
 
     <form id="evaluationForm" class="evaluation-form">
-      <!-- Informações do Aluno -->
-      <section class="student-info">
-        <h3>Informações do Aluno</h3>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="studentName">Nome Completo *</label>
-            <input type="text" id="studentName" name="studentName" required>
+      ${formData.sections && formData.sections.length > 0 ? formData.sections.map((section, sectionIdx) => `
+        <section class="form-section">
+          <div class="section-header">
+            <h2 class="section-title">${escapeHtml(section.title)}</h2>
+            ${section.subtitle ? `<p class="section-subtitle">${escapeHtml(section.subtitle)}</p>` : ''}
           </div>
-          <div class="form-group">
-            <label for="studentEmail">Email *</label>
-            <input type="email" id="studentEmail" name="studentEmail" required>
-          </div>
-          <div class="form-group">
-            <label for="studentClass">Turma</label>
-            <input type="text" id="studentClass" name="studentClass">
-          </div>
-          <div class="form-group">
-            <label for="studentRegistration">Matrícula</label>
-            <input type="text" id="studentRegistration" name="studentRegistration">
-          </div>
-        </div>
-      </section>
-
-      ${formData.generalQuestions.length > 0 ? `
-      <!-- Perguntas Gerais -->
-      <section class="general-questions">
-        <h3>Perguntas Gerais do Módulo</h3>
-        ${formData.generalQuestions.map((q, idx) => `
-        <div class="question-item">
-          <p class="question-text">${idx + 1}. ${escapeHtml(q.text)}</p>
-          <div class="scale-options">
-            <span class="scale-label">${escapeHtml(q.scaleLabels[0])}</span>
-            ${[1, 2, 3, 4, 5].map(val => `
-            <label class="radio-option">
-              <input type="radio" name="general_${q.id}" value="${val}" required>
-              <span>${val}</span>
-            </label>
+          
+          <div class="questions-list">
+            ${section.questions.map((question, qIdx) => `
+              <div class="question-item">
+                <div class="question-header">
+                  <span class="question-number">${qIdx + 1}.</span>
+                  <p class="question-text">
+                    ${escapeHtml(question.text)}
+                    ${question.required ? '<span class="required-mark">*</span>' : ''}
+                  </p>
+                </div>
+                <div class="question-answer">
+                  ${generateQuestionField(question, `section${sectionIdx}_q${qIdx}`)}
+                </div>
+              </div>
             `).join('')}
-            <span class="scale-label">${escapeHtml(q.scaleLabels[1])}</span>
           </div>
-        </div>
-        `).join('')}
-      </section>
-      ` : ''}
-
-      ${formData.classes.map((classItem, classIdx) => `
-      <!-- Aula ${classIdx + 1} -->
-      <section class="class-section">
-        <h3>${escapeHtml(classItem.title)}</h3>
-        <h4>${escapeHtml(classItem.theme)}</h4>
-        <p class="professor"><strong>Professor(a):</strong> ${escapeHtml(classItem.professor)}</p>
-        <p class="syllabus">${escapeHtml(classItem.syllabus)}</p>
-        
-        <div class="class-questions">
-          ${classItem.questions.map((q, qIdx) => `
-          <div class="question-item">
-            <p class="question-text">${escapeHtml(q.text)}</p>
-            <div class="scale-options">
-              <span class="scale-label">${escapeHtml(q.scaleLabels[0])}</span>
-              ${[1, 2, 3, 4, 5].map(val => `
-              <label class="radio-option">
-                <input type="radio" name="class${classItem.id}_q${q.id}" value="${val}" required>
-                <span>${val}</span>
-              </label>
-              `).join('')}
-              <span class="scale-label">${escapeHtml(q.scaleLabels[1])}</span>
-            </div>
-          </div>
-          `).join('')}
-        </div>
-      </section>
-      `).join('')}
+        </section>
+      `).join('') : ''}
 
       <div class="form-actions">
         <button type="submit" class="btn-submit">Enviar Avaliação</button>
@@ -288,7 +248,8 @@ const generateHTML = (formData) => {
     </form>
 
     <div id="successMessage" class="success-message" style="display: none;">
-      <h3>✓ Avaliação Enviada com Sucesso!</h3>
+      <div class="success-icon">✓</div>
+      <h3>Avaliação Enviada com Sucesso!</h3>
       <p>Obrigado por sua participação.</p>
     </div>
   </div>
@@ -345,22 +306,16 @@ function submitToSCORM(formData) {
     const sessionTime = calculateSessionTime();
     window.API_1484_11.SetValue('cmi.session_time', sessionTime);
     
-    // Salvar dados do aluno
-    window.API_1484_11.SetValue('cmi.learner_name', formData.get('studentName'));
-    
     // Salvar respostas como interactions
     let interactionIndex = 0;
     const formEntries = Array.from(formData.entries());
     
     formEntries.forEach(([key, value]) => {
-      if (key.startsWith('general_') || key.startsWith('class')) {
-        const interactionId = \`interaction_\${interactionIndex}\`;
-        window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.id\`, key);
-        window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.type\`, 'choice');
-        window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.learner_response\`, value);
-        window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.result\`, 'correct');
-        interactionIndex++;
-      }
+      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.id\`, key);
+      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.type\`, 'choice');
+      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.learner_response\`, value);
+      window.API_1484_11.SetValue(\`cmi.interactions.\${interactionIndex}.result\`, 'correct');
+      interactionIndex++;
     });
     
     // Marcar como completado
@@ -407,22 +362,14 @@ window.addEventListener('load', function() {
     form.style.display = 'none';
     successMessage.style.display = 'block';
     
-    // Salvar localmente também
-    const responses = {};
-    formData.forEach((value, key) => {
-      responses[key] = value;
-    });
-    
-    try {
-      localStorage.setItem('evaluation_responses', JSON.stringify(responses));
-      localStorage.setItem('evaluation_submitted_at', new Date().toISOString());
-    } catch (e) {
-      console.warn('Não foi possível salvar localmente:', e);
-    }
+    // Terminar SCORM após 2 segundos
+    setTimeout(() => {
+      terminateSCORM();
+    }, 2000);
   });
 });
 
-// Terminar SCORM ao sair
+// Terminar SCORM quando a janela fechar
 window.addEventListener('beforeunload', function() {
   terminateSCORM();
 });
@@ -439,8 +386,7 @@ const generateCSS = () => {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   line-height: 1.6;
   color: #333;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -453,7 +399,7 @@ body {
   margin: 0 auto;
   background: white;
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -465,138 +411,165 @@ body {
 }
 
 .header h1 {
-  font-size: 2rem;
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.header-intro {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.header-intro .greeting {
+  font-weight: 600;
   margin-bottom: 10px;
 }
 
-.header h2 {
-  font-size: 1.3rem;
-  font-weight: 400;
-  margin-bottom: 15px;
-  opacity: 0.95;
+.header-intro .intro-paragraph {
+  margin-bottom: 10px;
+  line-height: 1.7;
 }
 
-.institution {
-  font-size: 0.9rem;
-  opacity: 0.9;
+.header-intro .deadline {
+  margin-top: 15px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  font-style: italic;
 }
 
-.deadline {
-  margin-top: 10px;
-  font-size: 0.95rem;
-  background: rgba(255, 255, 255, 0.2);
-  display: inline-block;
-  padding: 5px 15px;
-  border-radius: 20px;
+.header-intro .closing {
+  margin-top: 15px;
+  font-weight: 500;
+  white-space: pre-line;
 }
 
 .evaluation-form {
   padding: 30px;
 }
 
-section {
+.form-section {
   margin-bottom: 40px;
   padding-bottom: 30px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid #e5e7eb;
 }
 
-section:last-child {
+.form-section:last-of-type {
   border-bottom: none;
 }
 
-h3 {
-  font-size: 1.5rem;
+.section-header {
+  margin-bottom: 25px;
+}
+
+.section-title {
+  font-size: 1.75rem;
   color: #667eea;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
+  font-weight: 700;
 }
 
-.student-info h3 {
-  color: #333;
+.section-subtitle {
+  font-size: 1rem;
+  color: #6b7280;
+  font-style: italic;
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-}
-
-.form-group {
+.questions-list {
   display: flex;
   flex-direction: column;
-}
-
-.form-group label {
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: #555;
-}
-
-.form-group input {
-  padding: 12px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: border-color 0.3s;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #667eea;
-}
-
-.class-section {
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: 25px;
-  border-radius: 12px;
-  border: none;
-}
-
-.class-section h3 {
-  color: #333;
-  font-size: 1.3rem;
-}
-
-.class-section h4 {
-  color: #667eea;
-  font-size: 1.1rem;
-  margin-bottom: 15px;
-}
-
-.professor {
-  font-size: 0.95rem;
-  color: #555;
-  margin-bottom: 8px;
-}
-
-.syllabus {
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 20px;
-  line-height: 1.5;
-}
-
-.class-questions {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
+  gap: 25px;
 }
 
 .question-item {
-  margin-bottom: 25px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.3s ease;
 }
 
-.question-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
+.question-item:hover {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+}
+
+.question-header {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.question-number {
+  background: #667eea;
+  color: white;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  min-width: 35px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .question-text {
+  flex: 1;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.required-mark {
+  color: #ef4444;
+  margin-left: 4px;
+  font-weight: bold;
+}
+
+.question-answer {
+  margin-left: 45px;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.radio-option,
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.radio-option:hover,
+.checkbox-option:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+
+.radio-option input[type="radio"],
+.checkbox-option input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.radio-option input[type="radio"]:checked ~ span,
+.checkbox-option input[type="checkbox"]:checked ~ span {
   font-weight: 600;
-  margin-bottom: 15px;
-  color: #333;
-  font-size: 1rem;
+  color: #667eea;
 }
 
 .scale-options {
@@ -604,62 +577,90 @@ h3 {
   align-items: center;
   gap: 15px;
   flex-wrap: wrap;
+  justify-content: center;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
 }
 
 .scale-label {
-  font-size: 0.85rem;
-  color: #666;
+  font-size: 0.9rem;
+  color: #6b7280;
   font-weight: 500;
-  min-width: 120px;
+  max-width: 150px;
+  text-align: center;
 }
 
-.radio-option {
-  display: flex;
+.scale-radio {
   flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: transform 0.2s;
+  padding: 10px;
+  min-width: 50px;
+  border: 2px solid #e5e7eb;
+  background: white;
 }
 
-.radio-option:hover {
-  transform: scale(1.1);
+.scale-radio:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
 }
 
-.radio-option input[type="radio"] {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
+.scale-radio input[type="radio"]:checked {
   accent-color: #667eea;
 }
 
-.radio-option span {
-  font-size: 0.9rem;
+.scale-radio input[type="radio"]:checked ~ .scale-number {
+  color: #667eea;
+  font-weight: bold;
+}
+
+.scale-number {
+  font-size: 1.2rem;
   font-weight: 600;
-  color: #666;
+  color: #374151;
+}
+
+.text-input,
+.textarea-input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.text-input:focus,
+.textarea-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .form-actions {
+  margin-top: 40px;
   text-align: center;
-  padding-top: 20px;
+  padding: 30px;
+  background: #f9fafb;
+  border-radius: 8px;
 }
 
 .btn-submit {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 15px 50px;
+  padding: 16px 48px;
   font-size: 1.1rem;
   font-weight: 600;
-  border-radius: 50px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .btn-submit:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
 }
 
 .btn-submit:active {
@@ -667,82 +668,98 @@ h3 {
 }
 
 .success-message {
-  padding: 60px 30px;
   text-align: center;
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  padding: 60px 30px;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: #10b981;
   color: white;
+  font-size: 3rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  animation: successPulse 0.6s ease;
+}
+
+@keyframes successPulse {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .success-message h3 {
+  color: #10b981;
   font-size: 2rem;
-  color: white;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .success-message p {
-  font-size: 1.2rem;
+  color: #6b7280;
+  font-size: 1.1rem;
 }
 
 @media (max-width: 768px) {
-  .scale-options {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .scale-label {
-    width: 100%;
+  body {
+    padding: 10px;
   }
   
   .header h1 {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
   }
   
-  .header h2 {
-    font-size: 1.1rem;
+  .section-title {
+    font-size: 1.4rem;
+  }
+  
+  .question-answer {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .scale-options {
+    flex-direction: column;
+  }
+  
+  .scale-label {
+    max-width: 100%;
   }
 }
 `;
 };
 
-// Helpers
-const escapeXml = (str) => {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-};
-
-const escapeHtml = (str) => {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-};
-
 // Função principal para gerar o pacote SCORM
 export const generateSCORMPackage = async (formData) => {
-  const zip = new JSZip();
-  
-  // Adicionar arquivos ao ZIP
-  zip.file('imsmanifest.xml', generateManifest(formData));
-  zip.file('metadata.xml', generateMetadata(formData));
-  zip.file('index.html', generateHTML(formData));
-  zip.file('scorm-api-wrapper.js', generateScormAPIWrapper());
-  zip.file('evaluation.js', generateEvaluationJS());
-  zip.file('styles.css', generateCSS());
-  zip.file('config.json', JSON.stringify(formData, null, 2));
-  
-  // Gerar o arquivo ZIP
-  const blob = await zip.generateAsync({ type: 'blob' });
-  
-  // Download
-  const fileName = `scorm_${formData.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${Date.now()}.zip`;
-  saveAs(blob, fileName);
-  
-  return fileName;
-};
+  try {
+    const zip = new JSZip();
 
-export default generateSCORMPackage;
+    // Adicionar arquivos ao ZIP
+    zip.file('imsmanifest.xml', generateManifest(formData));
+    zip.file('scorm-api-wrapper.js', generateScormAPIWrapper());
+    zip.file('index.html', generateHTML(formData));
+    zip.file('evaluation.js', generateEvaluationJS());
+    zip.file('styles.css', generateCSS());
+
+    // Gerar o ZIP
+    const content = await zip.generateAsync({ type: 'blob' });
+
+    // Fazer download
+    const fileName = `${formData.title.replace(/\s+/g, '_')}_SCORM.zip`;
+    saveAs(content, fileName);
+
+    console.log('Pacote SCORM gerado com sucesso!');
+  } catch (error) {
+    console.error('Erro ao gerar pacote SCORM:', error);
+    alert('Erro ao gerar pacote SCORM. Verifique o console para mais detalhes.');
+  }
+};
