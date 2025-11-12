@@ -262,20 +262,26 @@ const generateHTML = (formData) => {
 // Gera o JavaScript da avaliação - VERSÃO OTIMIZADA MOODLE
 const generateEvaluationJS = (formData) => {
   // Gerar mapeamento dinâmico de questões
-  let questionMapCode = '{\n';
+  const questionMapEntries = [];
   
   if (formData.sections) {
     formData.sections.forEach((section, sectionIdx) => {
       section.questions.forEach((question, qIdx) => {
         const key = `section${sectionIdx}_q${qIdx}`;
-        const label = question.text.substring(0, 50);
-        questionMapCode += `  '${key}': { id: 'q${sectionIdx}_${qIdx}', label: '${label.replace(/'/g, "\\'")}', section: '${section.title.replace(/'/g, "\\'")}' },\n`;
+        const id = `q${sectionIdx}_${qIdx}`;
+        const label = question.text.length > 50 ? question.text.substring(0, 50) + '...' : question.text;
+        const sectionTitle = section.title;
+        
+        questionMapEntries.push(
+          `  '${key}': { id: '${id}', label: ${JSON.stringify(label)}, section: ${JSON.stringify(sectionTitle)} }`
+        );
       });
     });
   }
   
-  questionMapCode += '}';
+  const questionMapCode = '{\n' + questionMapEntries.join(',\n') + '\n}';
   
+  // JavaScript com template literals corretos
   return `
 // Inicializar SCORM
 let scormInitialized = false;
@@ -345,7 +351,7 @@ function getCurrentTimestamp() {
 
 function submitToSCORM(formData) {
   if (!scormInitialized) {
-    console.error('✗ SCORM não inicializado - não é possível salvar');
+    console.error('✗ SCORM não inicializado');
     alert('Erro: Conexão com o LMS não estabelecida. Por favor, recarregue a página.');
     return;
   }
@@ -360,24 +366,41 @@ function submitToSCORM(formData) {
     const sessionTime = formatSessionTime(endTime - startTime);
     const formEntries = Array.from(formData.entries());
     
-    console.log('Total de respostas:', formEntries.length);
+    // Agrupar checkboxes múltiplos
+    const groupedEntries = {};
+    formEntries.forEach(function(entry) {
+      const name = entry[0];
+      const value = entry[1];
+      
+      if (!groupedEntries[name]) {
+        groupedEntries[name] = [];
+      }
+      groupedEntries[name].push(value);
+    });
+    
+    const processedEntries = Object.keys(groupedEntries).map(function(name) {
+      const values = groupedEntries[name];
+      return [name, values.length > 1 ? values.join(', ') : values[0]];
+    });
+    
+    console.log('Total de respostas:', processedEntries.length);
     console.log('Timestamp:', timestamp);
     console.log('Session Time:', sessionTime);
     
     // PASSO 1: Salvar tempos
-    console.log('\\n📅 PASSO 1: Salvando tempos...');
+    console.log('');
+    console.log('📅 PASSO 1: Salvando tempos...');
     window.API_1484_11.SetValue('cmi.session_time', sessionTime);
     
-    // PASSO 2: Salvar CADA resposta como interação
-    console.log('\\n📝 PASSO 2: Salvando interações...');
-    formEntries.forEach(function(entry, index) {
+    // PASSO 2: Salvar interações
+    console.log('');
+    console.log('📝 PASSO 2: Salvando interações...');
+    processedEntries.forEach(function(entry, index) {
       const fieldName = entry[0];
       const value = entry[1];
       const questionInfo = getQuestionInfo(fieldName);
-      
       const idx = String(index);
       
-      // Dados da interação
       window.API_1484_11.SetValue('cmi.interactions.' + idx + '.id', questionInfo.id);
       window.API_1484_11.SetValue('cmi.interactions.' + idx + '.type', 'choice');
       window.API_1484_11.SetValue('cmi.interactions.' + idx + '.description', questionInfo.label);
@@ -386,14 +409,13 @@ function submitToSCORM(formData) {
       window.API_1484_11.SetValue('cmi.interactions.' + idx + '.timestamp', timestamp);
       
       console.log('  ✓', (index + 1) + '.', questionInfo.label, '=', value);
-      
-      // Fazer commit após cada interação para garantir gravação
       window.API_1484_11.Commit('');
     });
     
-    // PASSO 3: Salvar objetivos (Moodle usa muito isso)
-    console.log('\\n🎯 PASSO 3: Salvando objetivos...');
-    formEntries.forEach(function(entry, index) {
+    // PASSO 3: Salvar objetivos
+    console.log('');
+    console.log('🎯 PASSO 3: Salvando objetivos...');
+    processedEntries.forEach(function(entry, index) {
       const fieldName = entry[0];
       const questionInfo = getQuestionInfo(fieldName);
       const idx = String(index);
@@ -402,16 +424,15 @@ function submitToSCORM(formData) {
       window.API_1484_11.SetValue('cmi.objectives.' + idx + '.success_status', 'passed');
       window.API_1484_11.SetValue('cmi.objectives.' + idx + '.completion_status', 'completed');
       window.API_1484_11.SetValue('cmi.objectives.' + idx + '.score.scaled', '1');
-      
-      // Commit após cada objetivo
       window.API_1484_11.Commit('');
     });
-    console.log('  ✓ Total de objetivos:', formEntries.length);
+    console.log('  ✓ Total de objetivos:', processedEntries.length);
     
-    // PASSO 4: Criar dados estruturados
-    console.log('\\n💾 PASSO 4: Salvando dados estruturados...');
+    // PASSO 4: Dados estruturados
+    console.log('');
+    console.log('💾 PASSO 4: Salvando dados estruturados...');
     const allResponses = {};
-    formEntries.forEach(function(entry) {
+    processedEntries.forEach(function(entry) {
       const fieldName = entry[0];
       const value = entry[1];
       const questionInfo = getQuestionInfo(fieldName);
@@ -422,21 +443,20 @@ function submitToSCORM(formData) {
       };
     });
     
-    const suspendData = JSON.stringify({
+    window.API_1484_11.SetValue('cmi.suspend_data', JSON.stringify({
       completed: true,
       timestamp: timestamp,
       duration: sessionTime,
       responses: allResponses
-    });
-    
-    window.API_1484_11.SetValue('cmi.suspend_data', suspendData);
+    }));
     window.API_1484_11.Commit('');
     console.log('  ✓ Suspend data salvo');
     
-    // PASSO 5: Salvar em cmi.comments (backup legível)
-    console.log('\\n💬 PASSO 5: Salvando comentários...');
-    let commentText = 'RESPOSTAS DA AVALIAÇÃO:\\n';
-    formEntries.forEach(function(entry, index) {
+    // PASSO 5: Comentários
+    console.log('');
+    console.log('💬 PASSO 5: Salvando comentários...');
+    let commentText = 'RESPOSTAS:\\n';
+    processedEntries.forEach(function(entry, index) {
       const fieldName = entry[0];
       const value = entry[1];
       const questionInfo = getQuestionInfo(fieldName);
@@ -448,8 +468,9 @@ function submitToSCORM(formData) {
     window.API_1484_11.Commit('');
     console.log('  ✓ Comentário salvo');
     
-    // PASSO 6: Definir pontuação e status final
-    console.log('\\n📊 PASSO 6: Definindo status final...');
+    // PASSO 6: Status final
+    console.log('');
+    console.log('📊 PASSO 6: Definindo status final...');
     window.API_1484_11.SetValue('cmi.score.raw', '100');
     window.API_1484_11.SetValue('cmi.score.min', '0');
     window.API_1484_11.SetValue('cmi.score.max', '100');
@@ -462,62 +483,49 @@ function submitToSCORM(formData) {
     console.log('  ✓ Success: passed');
     console.log('  ✓ Score: 100/100');
     
-    // PASSO 7: COMMIT FINAL CRÍTICO
-    console.log('\\n🔒 PASSO 7: COMMIT FINAL...');
+    // PASSO 7: COMMIT FINAL
+    console.log('');
+    console.log('🔒 PASSO 7: COMMIT FINAL...');
     const finalCommit = window.API_1484_11.Commit('');
     
     if (finalCommit === 'true' || finalCommit === true) {
       console.log('✅ ✅ ✅ SUCESSO TOTAL! ✅ ✅ ✅');
       console.log('═══════════════════════════════════════');
-      console.log('Todas as respostas foram salvas no LMS');
-      console.log('Total de interações:', formEntries.length);
-      console.log('Total de objetivos:', formEntries.length);
+      console.log('Total de interações:', processedEntries.length);
+      console.log('Total de objetivos:', processedEntries.length);
       console.log('═══════════════════════════════════════');
       
-      // Verificação final
       setTimeout(function() {
-        console.log('\\n🔍 VERIFICAÇÃO FINAL:');
+        console.log('');
+        console.log('🔍 VERIFICAÇÃO FINAL:');
         const savedStatus = window.API_1484_11.GetValue('cmi.completion_status');
         const savedScore = window.API_1484_11.GetValue('cmi.score.raw');
-        const savedData = window.API_1484_11.GetValue('cmi.suspend_data');
         
-        console.log('  Status recuperado:', savedStatus);
-        console.log('  Score recuperado:', savedScore);
-        console.log('  Suspend data:', savedData ? 'OK (' + savedData.length + ' chars)' : 'VAZIO');
+        console.log('  Status:', savedStatus);
+        console.log('  Score:', savedScore);
         
         if (savedStatus === 'completed' && savedScore === '100') {
-          console.log('\\n✅ CONFIRMADO: Dados gravados com sucesso!');
+          console.log('');
+          console.log('✅ CONFIRMADO: Dados gravados!');
         } else {
-          console.warn('\\n⚠️ ATENÇÃO: Possível problema na gravação');
-          console.warn('  Status esperado: completed, recebido:', savedStatus);
-          console.warn('  Score esperado: 100, recebido:', savedScore);
+          console.warn('');
+          console.warn('⚠️ Possível problema na gravação');
         }
       }, 1000);
-      
     } else {
-      console.error('❌ FALHA NO COMMIT FINAL!');
+      console.error('❌ FALHA NO COMMIT!');
       const errorCode = window.API_1484_11.GetLastError();
       const errorString = window.API_1484_11.GetErrorString(errorCode);
-      const diagnostic = window.API_1484_11.GetDiagnostic(errorCode);
-      
-      console.error('  Código de erro:', errorCode);
-      console.error('  Mensagem:', errorString);
-      console.error('  Diagnóstico:', diagnostic);
-      
-      alert('Erro ao salvar dados: ' + errorString);
+      console.error('Erro:', errorCode, '-', errorString);
+      alert('Erro ao salvar: ' + errorString);
     }
-    
   } catch (e) {
-    console.error('❌ ERRO CRÍTICO durante o envio:', e);
-    console.error('Stack trace:', e.stack);
-    
+    console.error('❌ ERRO CRÍTICO:', e);
     if (window.API_1484_11) {
       const errorCode = window.API_1484_11.GetLastError();
-      const errorString = window.API_1484_11.GetErrorString(errorCode);
-      console.error('Erro SCORM:', errorCode, '-', errorString);
+      console.error('Código SCORM:', errorCode);
     }
-    
-    alert('Erro crítico ao salvar: ' + e.message);
+    alert('Erro crítico: ' + e.message);
   }
 }
 
@@ -525,47 +533,40 @@ function terminateSCORM() {
   if (!scormInitialized) return;
   
   try {
-    console.log('\\n🔚 Finalizando sessão SCORM...');
-    
-    // Commit final antes de terminar
+    console.log('');
+    console.log('🔚 Finalizando...');
     window.API_1484_11.Commit('');
     
-    // Aguardar para garantir gravação
     const start = new Date().getTime();
     while (new Date().getTime() < start + 300);
     
     const result = window.API_1484_11.Terminate('');
-    
     if (result === 'true' || result === true) {
-      console.log('✅ Sessão SCORM finalizada com sucesso');
+      console.log('✅ Finalizado com sucesso');
       scormInitialized = false;
-    } else {
-      console.error('❌ Erro ao finalizar SCORM');
     }
   } catch (e) {
     console.error('❌ Erro ao finalizar:', e);
   }
 }
 
-// Inicializar
 window.addEventListener('load', function() {
-  console.log('🚀 Avaliação SCORM - Versão Moodle Otimizada');
-  console.log('Iniciando em:', new Date().toLocaleString('pt-BR'));
+  console.log('🚀 Avaliação SCORM - Versão Moodle');
   initializeSCORM();
   
   const form = document.getElementById('evaluationForm');
   const successMessage = document.getElementById('successMessage');
   
   if (!form) {
-    console.error('❌ Formulário não encontrado!');
+    console.error('❌ Formulário não encontrado');
     return;
   }
   
   form.addEventListener('submit', function(e) {
     e.preventDefault();
-    console.log('\\n📋 Formulário submetido pelo usuário');
+    console.log('');
+    console.log('📋 Formulário submetido');
     
-    // Validação
     const requiredFields = form.querySelectorAll('[required]');
     const radioGroups = {};
     
@@ -597,13 +598,11 @@ window.addEventListener('load', function() {
     form.style.display = 'none';
     successMessage.style.display = 'block';
     
-    // Aguardar antes de terminar
     setTimeout(function() {
       terminateSCORM();
     }, 3000);
   });
   
-  // Auto-save periódico
   setInterval(function() {
     if (scormInitialized) {
       window.API_1484_11.Commit('');
@@ -611,10 +610,9 @@ window.addEventListener('load', function() {
   }, 30000);
 });
 
-// Salvar antes de sair
 window.addEventListener('beforeunload', function() {
   if (scormInitialized) {
-    console.log('👋 Página sendo fechada...');
+    console.log('👋 Fechando página...');
     window.API_1484_11.Commit('');
     const start = new Date().getTime();
     while (new Date().getTime() < start + 300);
@@ -625,13 +623,13 @@ window.addEventListener('unload', function() {
   if (scormInitialized) {
     terminateSCORM();
   }
-});
-`;
+});`;
 };
 
 // Gera o CSS
 const generateCSS = () => {
-  return `
+  return `/* [Mesmo CSS anterior - mantém igual] */
+
 * {
   margin: 0;
   padding: 0;
@@ -987,8 +985,7 @@ body {
   .scale-label {
     max-width: 100%;
   }
-}
-`;
+}`;
 };
 
 // Função principal para gerar o pacote SCORM
