@@ -120,20 +120,38 @@ var API_1484_11 = {
 // Tentar encontrar API no LMS
 function findAPI(win) {
   var findAPITries = 0;
+  console.log('🔍 Procurando API SCORM do Moodle...');
+  console.log('Janela atual tem API_1484_11?', !!win.API_1484_11);
+  
   while ((win.API_1484_11 == null) && (win.parent != null) && (win.parent != win)) {
     findAPITries++;
-    if (findAPITries > 7) return null;
+    console.log('  Tentativa', findAPITries, '- Verificando parent...');
+    if (findAPITries > 7) {
+      console.warn('❌ API não encontrada após 7 tentativas');
+      return null;
+    }
     win = win.parent;
+    console.log('  Parent tem API_1484_11?', !!win.API_1484_11);
+  }
+  
+  if (win.API_1484_11) {
+    console.log('✅ API do Moodle encontrada!');
   }
   return win.API_1484_11;
 }
 
 // Usar API do LMS se disponível, senão usar mock
 if (typeof API_1484_11 === 'undefined') {
+  console.log('📡 Tentando conectar à API do Moodle...');
   var lmsAPI = findAPI(window);
   if (lmsAPI != null) {
+    console.log('🔗 Usando API do Moodle');
     API_1484_11 = lmsAPI;
+  } else {
+    console.warn('⚠️ API do Moodle não encontrada - usando mock local');
   }
+} else {
+  console.log('📌 Usando API_1484_11 já definida');
 }`;
 };
 
